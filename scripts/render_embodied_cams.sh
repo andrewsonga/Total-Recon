@@ -10,8 +10,8 @@ maxframe=-1               # setting this value to -1 means that we intend to use
 scale=1
 scale_rgbimages=0.5
 
-# Render Novel 6-DoF Trajectories Using Reconstructed In-Scene Motion of Actors
-CUDA_VISIBLE_DEVICES=$dev python scripts/visualize/render_traj.py \
+# Render Meshes for Reconstructed Objects, Egocentric Camera (Blue) and 3rd-Person-Follow Camera (Yellow)
+CUDA_VISIBLE_DEVICES=$dev python scripts/visualize/render_embodied_cams.py \
   --seqname $seqname \
   --scale $scale_rgbimages --maxframe $maxframe --bullet_time -1 \
   --chunk 2048 \
