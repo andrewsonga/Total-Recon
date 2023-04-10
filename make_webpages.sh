@@ -1,0 +1,11 @@
+#python website_nvs.py --seqnames "andrew-dualcam0-ds-depscale0p2-load-fgbkgd andrew-dualcam0-ds-depscale0p2-finetune-fgbkgd andrew-dualcam0-ds-depscale0p2-depwt0-scaledcolmap-load-fgbkgd andrew-dualcam0-ds-depscale0p2-depwt0-scaledcolmap-finetune-fgbkgd andrew-dualcam0-ds-depscale0p2-depwt0-colmap-load-fgbkgd andrew-dualcam0-ds-depscale0p2-depwt0-colmap-finetune-fgbkgd" \
+#                      --pagename "effect of depth supervision (human video)" \
+#                      --rowheadings "[w/ depth supervision] eval-time compositing | [w/ depth supervision] jointly finetuned | [w/o depth supervision, ARKit poses] eval-time compositing | [w/o depth supervision, ARKit poses] jointly finetuned | [w/o depth supervision, Colmap poses] eval-time compositing | [w/o depth supervision, Colmap poses] jointly finetuned"  
+
+#python website_nvs.py --seqnames "cat-pikachiu-rgbd-ds-load-fgbkgd-bkgdalpha10-depscale0p02 cat-pikachiu-rgbd-ds-finetune-fgbkgd-noresetbeta-noresetlr-rgbloss-depthloss-flowloss-silloss-eikonalloss-cycloss-projloss-entloss-uncloss-alignedframes-frame380-depscale0p02 cat-pikachiu-rgbd-ds-load-fgbkgd-bkgdalpha10-depscale0p2-depwt0 cat-pikachiu-rgbd-ds-finetune-fgbkgd-noresetbeta-noresetlr-rgbloss-depthloss-flowloss-silloss-eikonalloss-cycloss-projloss-entloss-uncloss-alignedframes-frame380-depscale0p2-depwt0" \
+#                      --pagename "effect of depth supervision (cat video)" \
+#                      --rowheadings "[w/ depth supervision] eval-time compositing | [w/ depth supervision] jointly finetuned | [w/o depth supervision, ARKit poses] eval-time compositing | [w/o depth supervision, ARKit poses] jointly finetuned | [w/o depth supervision, Colmap poses] eval-time compositing | [w/o depth supervision, Colmap poses] jointly finetuned"  
+
+python website_nvs.py --seqnames "human-dualrig001-leftcam-ds-finetune-fgbkgd human-dualrig002-leftcam-ds-finetune-fgbkgd" \
+                      --pagename "visualizations for another human video" \
+                      --rowheadings "video1 | video 2"

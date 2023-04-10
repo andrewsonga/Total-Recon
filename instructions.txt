@@ -1,0 +1,16 @@
+Running eval-time compositing
+------------------------------
+
+1. Run `python render_fgbg.py $seqname` to extract the necessary camera poses for all objects (REMEMBER TO REMOVE the .txt files generated for the visualizations during the pretraining stage - this will mess up the nvs renderings as these .txt files have intrinsics that are already scaled)
+|-- if we're loading from pretrained fg and bkgd models, set `loadname_objs = [logdir/$seqname-fg, logdir/$seqname-bkgd]`
+|-- if we're loading from jointly finetuned fg and bkgd models, set `loadname_objs = ["logdir/{}/obj0/".format(opts.seqname), "logdir/{}/obj1/".format(opts.seqname)]`
+
+2. Run `./nvs_fgbg_parallel.sh 0 $seqname 0 0`
+|-- regardless whether we're loading from pretrained fg and bkgd models or jointly finetuned models, set `loadname_objs = ["logdir/{}/obj0/".format(opts.seqname), "logdir/{}/obj1/".format(opts.seqname)]`
+
+Running and visualizing the results of joint-finetuning
+--------------------------------------------------------
+
+1. Run `./train_animal_fgbg.sh $seqname $loss_wt` or `./train_human_fgbg.sh $seqname $loss_wt`
+2. Run `python extract_fgbg.py $seqname` to extract the necessary camera poses for all objects
+3. Run `./nvs_fgbg_parallel.sh 0 $seqname 0 0`
