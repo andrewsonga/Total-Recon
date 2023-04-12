@@ -35,7 +35,8 @@ from util_flow import write_pfm
   
 
 seqname=sys.argv[1]
-ishuman=sys.argv[2] # 'y/n'
+ishuman=sys.argv[2]     # 'y/n'
+
 odir='database/DAVIS/'
 imgdir= '%s/JPEGImages/Full-Resolution/%s'%(odir,seqname)
 maskdir='%s/Annotations/Full-Resolution/%s'%(odir,seqname)
@@ -64,19 +65,31 @@ frames = []
 for i,path in enumerate(sorted(glob.glob('%s/*'%imgdir))):
     print(path)
     img = cv2.imread(path)
-    msk = cv2.imread(path.replace('JPEGImages', 'Annotations').replace('.jpg', '.png'),0)
+    msk = cv2.imread(path.replace('JPEGImages', 'Annotations').replace('.jpg', '.png'), 0)
     h,w = img.shape[:2]
     
     # recompte mask    
-    msk = msk/np.sort(np.unique(msk))[1]
-    occluder = msk==255
-    msk[occluder] = 0
-   
+    # multi fg-obj case (post 10/09/22) 
+    # commenting the following line to account for cases where msk only contains values of 0 and 254, which when normalized, ends up assigning a mask of value 0 and 254
+    # leading the network to optimize a mask loss w.r.t. human mask
+    # msk = msk/np.sort(np.unique(msk))[1]
+    
+    # multi fg-obj case (post 10/09/22) 
+    # commenting the following two lines out to account for pixels of value 255
+    #occluder = msk==255
+    #msk[occluder] = 0
+
     # resize to some empirical size
     if h>w: h_rszd,w_rszd = 1333, 1333*w//h 
     else:   h_rszd,w_rszd = 1333*h//w, 1333 
     img_rszd = cv2.resize(img,(w_rszd,h_rszd))
-    msk_rszd = cv2.resize(msk,(w_rszd,h_rszd))
+    
+    # single fg-obj case (pre 10/09/22)
+    #msk_rszd = cv2.resize(msk,(w_rszd,h_rszd))
+
+    # multi fg-obj case (post 10/09/22) 
+    # resizing has to be done with cv2.INTER_NEAREST in order to ensure proper computation of the bounding box       
+    msk_rszd = cv2.resize(msk,(w_rszd,h_rszd), interpolation=cv2.INTER_NEAREST)
 
     # densepose
     clst_verts, image_bgr1, embedding, embedding_norm, bbox = run_cse(
