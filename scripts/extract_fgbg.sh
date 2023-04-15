@@ -1,11 +1,9 @@
 dev=$1
 seqname=$2
-vidid=$3   # pose traj
-rootid=$4  # root traj
-add_args=${*: 5:$#-1}
+add_args=${*: 3:$#-1}
+vidid=0   # pose traj
+rootid=0  # root traj
 
-#testdir=${model_path%/*} # %: from end
-#save_prefix=$testdir/nvs-$vidid-$rootid
 maxframe=-1       # setting this value to -1 means that we intend to use all frames of raw video (a positive integer value indicates we will either upsample or downsample the number frames)
 scale=1
 scale_rgbimages=1
