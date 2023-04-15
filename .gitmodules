@@ -6,7 +6,9 @@
 	path = third_party/pytorch3d
 	url = https://github.com/facebookresearch/pytorch3d
     ignore = dirty
+	branch = main
 [submodule "third_party/detectron2"]
 	path = third_party/detectron2
-	url = https://github.com/facebookresearch/detectron2
+	url = https://github.com/facebookresearch/detectron2.git
     ignore = dirty
+	branch = main
