@@ -14,6 +14,8 @@ Given a long video of deformable objects captured by a handheld RGBD sensor, Tot
 (1) Clone repo (including submodules):
 ```
 git clone https://github.com/andrewsonga/Total-Recon.git --recursive
+
+# This step is REQUIRED for all subsequent steps!
 cd Total-Recon
 ```
 (2) Install conda env:
@@ -28,21 +30,34 @@ pip install -e third_party/kmeans_pytorch
 python -m pip install detectron2 -f \
   https://dl.fbaipublicfiles.com/detectron2/wheels/cu113/torch1.10/index.html
 ```
+(4) Install ffmpeg:
+```
+apt-get install ffmpeg
+```
 
 ### Data
-We provide preprocessed data for the "human-dog" and "human-cat" sequences, and the raw data for all sequences.
+We provide raw and preprocessed data for the "human-dog", "human-cat", "human2" and "dog1 (v1)" sequences.
 
-(1) Download data and optical flow model for data preprocessing:
+(1) Download the optical flow model for data preprocessing:
 ```
-mkdir ./lasr_vcn
-gdown https://drive.google.com/uc?id=139S6pplPvMTB-_giI6V2dxpOHGqqAdHn -O ./lasr_vcn/vcn_rob.pth
+mkdir lasr_vcn
+gdown https://drive.google.com/uc?id=139S6pplPvMTB-_giI6V2dxpOHGqqAdHn -O lasr_vcn/vcn_rob.pth
 ```
 
-(2) Appropriate place the downloaded data with the following scripts:
+(2) Appropriately place the downloaded data with the following scripts:
 ```
 # place raw data under raw/
+# argv[1]: The directory inside Total-Recon where the downloaded raw data is stored
 
-# place preprocessed data under database/DAVIS/
+src_dir=rawdata_forrelease
+bash place_rawdata.sh $src_dir
+
+# place preprocessed data under database/
+# argv[1]: The directory inside Total-Recon where the downloaded preprocessed data is stored
+
+# for e.g.
+src_dir=database_humandog             
+bash place_preprocessed.sh $src_dir
 ```
 
 (3) Preprocess raw data
@@ -63,9 +78,13 @@ bash preprocess_rawdata_singleobj.sh cat2-stereo n
 ```
 
 ### Pre-trained Models
-Our pre-trained models for all sequences can be downloaded using the following script:
+Appropriately place the downloaded pretrained models with the following script:
 ```
-bash 
+# Place the pre-trained models under logdir/
+# argv[1]: The directory inside Total-Recon where the downloaded preprocessed data is stored
+
+src_dir=pretrained_models_forrelease
+bash place_models.sh $src_dir
 ```
 
 ## Inference
