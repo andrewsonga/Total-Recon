@@ -11,3 +11,5 @@ __pycache__/
 lasr_vcn/
 *.pyc
 .nfs*
+rename_configs.sh
+rename_models.sh
