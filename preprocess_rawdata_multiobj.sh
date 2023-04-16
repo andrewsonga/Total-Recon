@@ -1,8 +1,7 @@
 prefix=$1
-isdynamic=$2        # y/n
+isdynamic=y        # y/n
 rootdir=raw
 
-: '
 # 1) make copies of raw dataset for per-object data preprocessing
 echo making copies of raw dataset for per-object data preprocessing
 rm -rf $rootdir/$prefix-human-leftcam
@@ -21,7 +20,6 @@ bash preprocess/preprocess_frames_dualrig.sh $prefix-human y $isdynamic
 # 3) generate preprocessed data for the "animal" object
 #    this version of the dataset will include masks for the animal object, and densepose features extracted for the animal (quadruped) object
 bash preprocess/preprocess_frames_dualrig.sh $prefix-animal n $isdynamic
-'
 
 # 4) generate preprocessed data for the "background" object
 #    by copying the contents of that of the "human" object
