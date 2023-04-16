@@ -1152,9 +1152,10 @@ def main(_):
 
         if opts.render_cam:
             mesh_asset = trimesh.load(file_obj='mesh_material/camera.obj', force='mesh')
-            color = mesh_asset.visual.to_color()
-            mesh_asset.visual.vertex_colors = color
+            #color = mesh_asset.visual.to_color()
+            #mesh_asset.visual.vertex_colors = color
             #mesh_asset.visual.vertex_colors.vertex_colors = np.tile(np.array([[0.1, 0.1, 0.1, 1.]]), (mesh_asset.visual.vertex_colors.vertex_colors.shape[0], 1))
+            mesh_asset.visual.vertex_colors = np.tile(np.array([[0.1, 0.1, 0.1, 1.]]), (mesh_asset.visual.vertex_colors.shape[0], 1))
             if opts.thirdperson_view:
                 # color blue
                 try:
@@ -1324,8 +1325,6 @@ def main(_):
                 mesh_asset_time = trimesh.Trimesh(vertices=np.asarray(verts_asset_time[0,:,:3].cpu()), faces=np.asarray(faces_asset_time[0].cpu()), vertex_colors=mesh_asset.visual.vertex_colors.vertex_colors)     #
             except:
                 mesh_asset_time = trimesh.Trimesh(vertices=np.asarray(verts_asset_time[0,:,:3].cpu()), faces=np.asarray(faces_asset_time[0].cpu()), vertex_colors=mesh_asset.visual.vertex_colors)
-            
-            #print("mesh_asset.visual.vertex_colors: {}".format(mesh_asset_time.visual.vertex_colors))
 
             meshr_asset_time = Mesh.from_trimesh(mesh_asset_time, smooth=True)
             #meshr_asset_time._primitives[0].material.RoughnessFactor=1.

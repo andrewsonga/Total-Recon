@@ -702,17 +702,20 @@ def main(_):
         mesh_asset_tps = trimesh.load(file_obj='mesh_material/camera.obj', force='mesh')
 
         # (first-person view camera mesh): color yellow
-        color_fps = mesh_asset_fps.visual.to_color()
-        mesh_asset_fps.visual.vertex_colors = color_fps
-        color_tps = mesh_asset_tps.visual.to_color()
-        mesh_asset_tps.visual.vertex_colors = color_tps
-            
-        mesh_asset_fps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0.5, 0.5, 0, 1.]]), (mesh_asset_fps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        #color_fps = mesh_asset_fps.visual.to_color()
+        #mesh_asset_fps.visual.vertex_colors = color_fps
+        #color_tps = mesh_asset_tps.visual.to_color()
+        #mesh_asset_tps.visual.vertex_colors = color_tps   
+        #mesh_asset_fps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0.5, 0.5, 0, 1.]]), (mesh_asset_fps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        mesh_asset_fps.visual.vertex_colors = np.tile(np.array([[0.5, 0.5, 0, 1.]]), (mesh_asset_fps.visual.vertex_colors.shape[0], 1))
+    
         # scale vertices of 3d asset
         mesh_asset_fps.vertices = mesh_asset_fps.vertices * opts.asset_scale
 
         # (third-person view camera mesh): color blue
-        mesh_asset_tps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0, 0, 0.5, 1.]]), (mesh_asset_tps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        #mesh_asset_tps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0, 0, 0.5, 1.]]), (mesh_asset_tps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        mesh_asset_tps.visual.vertex_colors = np.tile(np.array([[0, 0, 0.5, 1.]]), (mesh_asset_tps.visual.vertex_colors.shape[0], 1))
+        
         # scale vertices of 3d asset
         mesh_asset_tps.vertices = mesh_asset_tps.vertices * opts.asset_scale
 

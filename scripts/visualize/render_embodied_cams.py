@@ -306,7 +306,7 @@ def main(_):
             rtks_obj_rendercam[:,:3,:] = root2novelcams_rendercam[:,:3,:]
 
 
-    opts.nvs_outpath = opts.nvs_outpath + "-povcams"
+    opts.nvs_outpath = opts.nvs_outpath + "-embodied-cams"
 
     rtks_objs_fps = [rtks.copy() for rtks in rtks_objs]
 
@@ -561,17 +561,21 @@ def main(_):
         mesh_asset_tps = trimesh.load(file_obj='mesh_material/camera.obj', force='mesh')
 
         # (first-person view camera mesh): color yellow
-        color_fps = mesh_asset_fps.visual.to_color()
-        mesh_asset_fps.visual.vertex_colors = color_fps
-        color_tps = mesh_asset_tps.visual.to_color()
-        mesh_asset_tps.visual.vertex_colors = color_tps
+        #color_fps = mesh_asset_fps.visual.to_color()
+        #mesh_asset_fps.visual.vertex_colors = color_fps
+        #color_tps = mesh_asset_tps.visual.to_color()
+        #mesh_asset_tps.visual.vertex_colors = color_tps
             
-        mesh_asset_fps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0.5, 0.5, 0, 1.]]), (mesh_asset_fps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        #mesh_asset_fps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0.5, 0.5, 0, 1.]]), (mesh_asset_fps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        mesh_asset_fps.visual.vertex_colors = np.tile(np.array([[0.5, 0.5, 0, 1.]]), (mesh_asset_fps.visual.vertex_colors.shape[0], 1))
+        
         # scale vertices of 3d asset
         mesh_asset_fps.vertices = mesh_asset_fps.vertices * opts.asset_scale
 
         # (third-person view camera mesh): color blue
-        mesh_asset_tps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0, 0, 0.5, 1.]]), (mesh_asset_tps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        #mesh_asset_tps.visual.vertex_colors.vertex_colors = np.tile(np.array([[0, 0, 0.5, 1.]]), (mesh_asset_tps.visual.vertex_colors.vertex_colors.shape[0], 1))
+        mesh_asset_tps.visual.vertex_colors = np.tile(np.array([[0, 0, 0.5, 1.]]), (mesh_asset_tps.visual.vertex_colors.shape[0], 1))
+        
         # scale vertices of 3d asset
         mesh_asset_tps.vertices = mesh_asset_tps.vertices * opts.asset_scale
 
@@ -657,7 +661,8 @@ def main(_):
         Tmat_obj_time = rtks_objs_rendercam_torch[opts.asset_obj_index][i : i+1, :3, 3]
 
         verts_asset_time_fps = obj_to_cam(verts_asset_time_fps, Rmat_obj_time, Tmat_obj_time)           # need to input Rmat of shape (1, 3, 3) and Tmat of shape (1,3), where Rmat, Tmat denote obj2cam matrices
-        mesh_asset_time_fps = trimesh.Trimesh(vertices=np.asarray(verts_asset_time_fps[0,:,:3].cpu()), faces=np.asarray(faces_asset_time_fps[0].cpu()), vertex_colors=mesh_asset_fps.visual.vertex_colors.vertex_colors)     #
+        #mesh_asset_time_fps = trimesh.Trimesh(vertices=np.asarray(verts_asset_time_fps[0,:,:3].cpu()), faces=np.asarray(faces_asset_time_fps[0].cpu()), vertex_colors=mesh_asset_fps.visual.vertex_colors.vertex_colors)
+        mesh_asset_time_fps = trimesh.Trimesh(vertices=np.asarray(verts_asset_time_fps[0,:,:3].cpu()), faces=np.asarray(faces_asset_time_fps[0].cpu()), vertex_colors=mesh_asset_fps.visual.vertex_colors)     
         meshr_asset_time_fps = Mesh.from_trimesh(mesh_asset_time_fps, smooth=True)
 
         # 5. add the resulting mesh, where vertices are now defined in the desired camera frame to a Scene object
@@ -699,7 +704,8 @@ def main(_):
         Tmat_obj_time = rtks_objs_rendercam_torch[opts.asset_obj_index][i : i+1, :3, 3]
 
         verts_asset_time_tps = obj_to_cam(verts_asset_time_tps, Rmat_obj_time, Tmat_obj_time)           # need to input Rmat of shape (1, 3, 3) and Tmat of shape (1,3), where Rmat, Tmat denote obj2cam matrices
-        mesh_asset_time_tps = trimesh.Trimesh(vertices=np.asarray(verts_asset_time_tps[0,:,:3].cpu()), faces=np.asarray(faces_asset_time_tps[0].cpu()), vertex_colors=mesh_asset_tps.visual.vertex_colors.vertex_colors)     #
+        #mesh_asset_time_tps = trimesh.Trimesh(vertices=np.asarray(verts_asset_time_tps[0,:,:3].cpu()), faces=np.asarray(faces_asset_time_tps[0].cpu()), vertex_colors=mesh_asset_tps.visual.vertex_colors.vertex_colors)     #
+        mesh_asset_time_tps = trimesh.Trimesh(vertices=np.asarray(verts_asset_time_tps[0,:,:3].cpu()), faces=np.asarray(faces_asset_time_tps[0].cpu()), vertex_colors=mesh_asset_tps.visual.vertex_colors)     #
         meshr_asset_time_tps = Mesh.from_trimesh(mesh_asset_time_tps, smooth=True)
 
         # 5. add the resulting mesh, where vertices are now defined in the desired camera frame to a Scene object
