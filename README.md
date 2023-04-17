@@ -38,10 +38,10 @@ apt-get install ffmpeg
 ### Data
 We provide raw and preprocessed data for the "human-dog", "human-cat", "human2" and "dog1 (v1)" sequences.
 
-(1) Download the optical flow model for data preprocessing:
+(1) Download raw data and preprocessed data, and untar them.
 ```
-mkdir lasr_vcn
-gdown https://drive.google.com/uc?id=139S6pplPvMTB-_giI6V2dxpOHGqqAdHn -O lasr_vcn/vcn_rob.pth
+bash download_rawdata.sh
+bash download_preprocess.sh
 ```
 
 (2) Appropriately place the downloaded data with the following scripts:
@@ -60,7 +60,13 @@ src_dir=database_humandog
 bash place_preprocessed.sh $src_dir
 ```
 
-(3) Preprocess raw data
+(3) Download the optical flow model for data preprocessing:
+```
+mkdir lasr_vcn
+gdown https://drive.google.com/uc?id=139S6pplPvMTB-_giI6V2dxpOHGqqAdHn -O lasr_vcn/vcn_rob.pth
+```
+
+(4) Preprocess raw data
 
 Multi-foreground-object sequences (e.g. humandog):
 ```
@@ -78,7 +84,12 @@ bash preprocess_rawdata_singleobj.sh cat2-stereo n
 ```
 
 ### Pre-trained Models
-Appropriately place the downloaded pretrained models with the following script:
+(1) Download the pre-trained models, and untar them.
+```
+bash download_models.sh
+```
+
+(2) Appropriately place the downloaded pretrained models with the following script:
 ```
 # Place the pre-trained models under logdir/
 # argv[1]: The directory inside Total-Recon where the downloaded preprocessed data is stored
