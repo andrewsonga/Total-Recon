@@ -1,0 +1,1 @@
+scp ndsong@kobra.ri.cmu.edu:/home/ndsong/workspace/database_humandog.tar.gz ./

@@ -1,0 +1,1 @@
+scp ndsong@kobra.ri.cmu.edu:/home/ndsong/workspace/pretrained_models_forrelease.tar.gz ./
