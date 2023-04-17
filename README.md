@@ -93,48 +93,125 @@ bash place_models.sh $src_dir
 ```
 bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam --render_cam_inputview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50
+```
+
+</details>
+<br>
+
 
 #### 3rd-Person-Follow (3rd-Pet-Follow) View Synthesis
 ```
 bash scripts/render_nvs_fgbg_tps.sh $gpu $seqname $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_fgmeshcenter_elevate_y 0 --thirdpersoncam_offset_x 0 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_zaxis 0 --asset_scale 0.003 --scale_tps 0.70
+```
+
+</details>
+<br>
 
 #### Bird's-Eye View Synthesis
 ```
 bash scripts/render_nvs_fgbg_bev.sh $gpu $seqname $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 
-#### Stereo View Synthesis (train on left camera, evaluate on right camera)
 ```
-bash scripts/render_nvs_fgbg_stereoview.sh $gpu $seqname $add_args
+--fg_obj_index 0 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15
 ```
 
-#### Train View Synthesis
-```
-bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname $add_args
-```
+</details>
+<br>
 
 #### Render 6-DoF Root-body Trajectory (Viewed from Bird's Eye View)
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_rootbody --render_traj_bev $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--fg_obj_index 0 --rootbody_obj_index 1 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15
+```
+
+</details>
+<br>
 
 #### Render 6-DoF Egocentric Camera Trajectory (Viewed from Stereo View)
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_fpscam --render_traj_stereoview $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z 0
+```
+
+</details>
+<br>
 
 #### Render 6-DoF 3rd-Person-Follow Camera Trajectory (Viewed from Stereo View)
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_tpscam --render_traj_stereoview $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_fgmeshcenter_elevate_y 0 --thirdpersoncam_offset_x 0 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_zaxis 0
+```
+
+</details>
+<br>
 
 #### Render Meshes for Reconstructed Objects, Egocentric Camera (Blue), and 3rd-Person-Follow Camera (Yellow)
 ```
 bash scripts/render_embodied_cams.sh $gpu $seqname $render_view $add_args
 ```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam --render_cam_inputview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50
+```
+
+</details>
+<br>
 
 #### Render 3D Video Filters
 ```
 bash scripts/render_nvs_fgbg_3dfilter.sh $gpu $seqname $add_args
+```
+<details><summary>additional arguments (add_args)</summary>
+Human-dog (seqname=humandog-stereo000-leftcam-jointft)
+
+```
+--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam --render_cam_inputview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50
+```
+
+</details>
+<br>
+
+## Evaluation
+
+#### Stereo View Synthesis (train on left camera, evaluate on right camera)
+```
+bash scripts/render_nvs_fgbg_stereoview.sh $gpu $seqname
+python print_metrics.py --seqname $seqname --view stereoview
+```
+
+#### Train View Synthesis (train and evaluate on left camera)
+```
+bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname
+python print_metrics.py --seqname $seqname --view inputview
 ```

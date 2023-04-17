@@ -6,7 +6,7 @@ from nnutils.eval_utils import rms_metric_over_allframes, average_metric_over_al
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="print metrics")
     parser.add_argument('--seqname', default='', help='dir name under which the metrics are stored')
-    parser.add_argument('--view', default='stereoview', help='view from which we want to print the metrics (input-view or stereo-view)')
+    parser.add_argument('--view', default='stereoview', help='view from which we want to print the metrics (inputview or stereoview)')
     args = parser.parse_args()
 
     checkpoint_dir = "logdir"
