@@ -42,6 +42,8 @@ We provide raw and preprocessed data for the "human-dog", "human-cat", "human2" 
 ```
 bash download_rawdata.sh
 bash download_preprocess.sh
+
+tar -xzvf $filename
 ```
 
 (2) Appropriately place the downloaded data with the following scripts:
@@ -87,6 +89,8 @@ bash preprocess_rawdata_singleobj.sh cat2-stereo n
 (1) Download the pre-trained models, and untar them.
 ```
 bash download_models.sh
+
+tar -xzvf $filename
 ```
 
 (2) Appropriately place the downloaded pretrained models with the following script:
