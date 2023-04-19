@@ -165,55 +165,6 @@ def compute_depth_acc_at_10cm(dph_gt, dph, conf_gt, mask=None, dep_scale = 0.2):
 
     return depth_acc_at_10cm
 
-# b, c) chamfer dist., F-score
-#chamLoss = chamfer3D.dist_chamfer_3D.chamfer_3DDist()
-def compute_chamfer_dist_fscore(dph_gt, dph, conf_gt, K, chamLoss, fscore, mask=None, dep_scale = 0.2):
-    # INPUTS:
-    # 1. dph_gt:            Ground truth depth image:                                   numpy array of shape = (H, W)
-    # 2. dph:               Rendered depth image:                                       numpy array of shape = (H, W)
-    # 3. conf_gt:           Ground truth depth-confidence image:                        numpy array of shape = (H, W)
-    # 4. K:                 intrinsics for the target camera view:                      numpy array of shape = (3, 3)
-    # 5. chamLoss:          object used to compute chamfer distance (instantiate once in the main script, and feed as input to this method)         "chamLoss = chamfer3D.dist_chamfer_3D.chamfer_3DDist()"
-    # 6. fscore:            object used to compute fscore (instantiate once in the main script, and feed as input to this method)                   "fscore = fscore.fscore()"
-    # 6. mask:              Binary spatial mask over which to compute the metric:       numpy array of shape = (H, W)
-    # 7. dep_scale:         Scale used to scale the ground truth depth during training
-    #
-    # RETURNS:
-    # 1. cd:                chamfer distance in metric space between the backprojected points of the gt depth image and the rendered depth image (units: m)
-    # 2. f_at_5cm:          F-score with 5cm threshold
-    # 3. f_at_10cm:         F-score with 10cm threshold
-
-    if mask is None:
-        mask = np.ones_like(conf_gt)                                                    # shape = (H, W)
-
-    height = dph_gt.shape[0]
-    width = dph_gt.shape[1]
-    x_coord, y_coord = np.meshgrid(np.arange(width), np.arange(height))                             # (H, W)
-    p_homogen = np.stack([x_coord, y_coord, np.ones_like(y_coord)], axis = -1)                      # (H, W, 3)
-
-    P_gt = np.repeat(dph_gt[..., np.newaxis], 3, axis=-1) * np.matmul(p_homogen, np.repeat(np.linalg.inv(K.T)[np.newaxis, ...], height, axis = 0)) / dep_scale       # (H, W, 3); for np.matmul, if either argument is N-D, it's treated as a stack of matrices residing in the last two indexes
-    P_gt = torch.from_numpy(P_gt.astype(np.float32)).cuda()
-    P = np.repeat(dph[..., np.newaxis], 3, axis=-1) * np.matmul(p_homogen, np.repeat(np.linalg.inv(K.T)[np.newaxis, ...], height, axis = 0)) / dep_scale             # (H, W, 3)
-    P = torch.from_numpy(P.astype(np.float32)).cuda()
-
-    # filter out for points with low confidence and that lie outside of binary mask
-    x_coord_valid = x_coord[(conf_gt > 1.5) & (mask == 1.)]                                             # (H, W)[(H, W)]                                                             
-    y_coord_valid = y_coord[(conf_gt > 1.5) & (mask == 1.)]                                             # (H, W)[(H, W)]
-
-    P_gt_valid = P_gt[y_coord_valid, x_coord_valid, :]                                                  # (N_valid, 3)
-    P_valid = P[y_coord_valid, x_coord_valid, :]                                                        # (N_valid, 3)
-
-    # compute metrics
-    raw_cd, raw_cd_back, _, _ = chamLoss(P_gt_valid[None, ...], P_valid[None, ...])
-    f_at_5cm, _, _ = fscore(raw_cd, raw_cd_back, threshold = 0.05**2)
-    f_at_10cm, _, _ = fscore(raw_cd, raw_cd_back, threshold = 0.10**2)
-
-    raw_cd = np.sqrt(np.asarray(raw_cd.cpu()[0]))
-    raw_cd_back = np.sqrt(np.asarray(raw_cd_back.cpu()[0]))
-    cd = raw_cd.mean() + raw_cd_back.mean()
-
-    return cd, f_at_5cm, f_at_10cm
-
 # root mean square metric over all frames
 # used for computing rms depth error (units: meters)
 def rms_metric_over_allframes(list_of_metrics):

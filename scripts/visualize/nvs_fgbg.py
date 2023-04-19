@@ -20,8 +20,6 @@ from scipy.spatial.transform import Rotation as R
 import imageio
 from collections import defaultdict
 import configparser
-import chamfer3D.dist_chamfer_3D
-import fscore     
 from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from utils.io import save_vid, str_to_frame, save_bones, load_root, load_sils, depth_to_image, error_to_image
@@ -32,7 +30,7 @@ from nnutils.geom_utils import obj_to_cam, pinhole_cam, obj2cam_np, tensor2array
                                 chunk_rays
 from nnutils.rendering import render_rays_objs
 from nnutils.eval_utils import im2tensor, calculate_psnr, calculate_ssim
-from nnutils.eval_utils import compute_psnr, compute_ssim, compute_lpips, compute_depth_error, compute_depth_acc_at_10cm, compute_chamfer_dist_fscore, rms_metric_over_allframes, average_metric_over_allframes, fg_rms_metric_over_allframes, fg_average_metric_over_allframes
+from nnutils.eval_utils import compute_psnr, compute_ssim, compute_lpips, compute_depth_error, compute_depth_acc_at_10cm, rms_metric_over_allframes, average_metric_over_allframes, fg_rms_metric_over_allframes, fg_average_metric_over_allframes
 from dataloader.vidbase import read_depth, read_conf
 import pyrender
 from pyrender import IntrinsicsCamera,Mesh, Node, Scene,OffscreenRenderer
@@ -1606,7 +1604,7 @@ def main(_):
 
     if opts.evaluate:
         lpips_model = lpips_models.PerceptualLoss(model='net-lin', net='alex', use_gpu=True,version=0.1)
-        chamLoss = chamfer3D.dist_chamfer_3D.chamfer_3DDist()
+        #chamLoss = chamfer3D.dist_chamfer_3D.chamfer_3DDist()
 
         x_coord, y_coord = np.meshgrid(np.arange(width), np.arange(height))                             # (H, W)
         p_homogen = np.stack([x_coord, y_coord, np.ones_like(y_coord)], axis = -1)                      # (H, W, 3)
@@ -1617,12 +1615,12 @@ def main(_):
         psnrs = []
         ssims = []
         lpipss = []
-        cds = []
-        cds_minus_holes = []
-        f_at_5cms = []
-        f_at_5cms_minus_holes = []
-        f_at_10cms = []
-        f_at_10cms_minus_holes = []
+        #cds = []
+        #cds_minus_holes = []
+        #f_at_5cms = []
+        #f_at_5cms_minus_holes = []
+        #f_at_10cms = []
+        #f_at_10cms_minus_holes = []
         depth_error_maps = []
         depth_errors = []
         depth_acc_at_10cms = []                                                                               
@@ -1632,9 +1630,9 @@ def main(_):
         psnrs_objs = {obj_index: [] for obj_index in range(len(opts_list))}
         ssims_objs = {obj_index: [] for obj_index in range(len(opts_list))}
         lpipss_objs = {obj_index: [] for obj_index in range(len(opts_list))}
-        cds_objs = {obj_index: [] for obj_index in range(len(opts_list))}
-        f_at_5cms_objs = {obj_index: [] for obj_index in range(len(opts_list))}
-        f_at_10cms_objs = {obj_index: [] for obj_index in range(len(opts_list))}
+        #cds_objs = {obj_index: [] for obj_index in range(len(opts_list))}
+        #f_at_5cms_objs = {obj_index: [] for obj_index in range(len(opts_list))}
+        #f_at_10cms_objs = {obj_index: [] for obj_index in range(len(opts_list))}
         depth_errors_objs = {obj_index: [] for obj_index in range(len(opts_list))}                      # error averaged over the rendered silhouette of each object
         depth_acc_at_10cms_objs = {obj_index: [] for obj_index in range(len(opts_list))}
 
@@ -1939,53 +1937,6 @@ def main(_):
                 '''
                 lpips = compute_lpips(rgb_gt, rgb, lpips_model)
                 lpipss.append(lpips)
-
-                # chamfer dist and F-score
-                # backproject gt depth and rendered depth into pointclouds in camera space (units: m)
-                # ASSUME: intrinsics for the fg and bkgd are the same
-                # TO-DO: unify the intrinsics for the fg and bkgd
-                '''
-                P_gt = np.repeat(dph_gt[..., np.newaxis], 3, axis=-1) * np.matmul(p_homogen, np.repeat(np.linalg.inv(K.T)[np.newaxis, ...], height, axis = 0)) / opts_list[-1].dep_scale       # (H, W, 3); for np.matmul, if either argument is N-D, it's treated as a stack of matrices residing in the last two indexes
-                P_gt = torch.from_numpy(P_gt.astype(np.float32)).cuda()
-                P = np.repeat(dph[..., np.newaxis], 3, axis=-1) * np.matmul(p_homogen, np.repeat(np.linalg.inv(K.T)[np.newaxis, ...], height, axis = 0)) / opts_list[-1].dep_scale             # (H, W, 3)
-                P = torch.from_numpy(P.astype(np.float32)).cuda()
-
-                # filter out for points with low confidence
-                x_coord_valid = x_coord[conf_gt > 1.5]                                          # (H, W)[(H, W)]                                                             
-                y_coord_valid = y_coord[conf_gt > 1.5]                                          # (H, W)[(H, W)]
-                #x_coord_valid_minus_holes = x_coord[(conf_gt > 1.5) & (sil > 0.5)]              # (H, W)[(H, W)]                                                             
-                #y_coord_valid_minus_holes = y_coord[(conf_gt > 1.5) & (sil > 0.5)]              # (H, W)[(H, W)]
-
-                P_gt_valid = P_gt[y_coord_valid, x_coord_valid, :]                                                  # (N_valid, 3)
-                P_valid = P[y_coord_valid, x_coord_valid, :]                                                        # (N_valid, 3)
-                #P_gt_valid_minus_holes = P_gt[y_coord_valid_minus_holes, x_coord_valid_minus_holes, :]              # (N_valid, 3)
-                #P_valid_minus_holes = P[y_coord_valid_minus_holes, x_coord_valid_minus_holes, :]                    # (N_valid, 3)
-
-                # compute metrics
-                raw_cd, raw_cd_back, _, _ = chamLoss(P_gt_valid[None, ...], P_valid[None, ...])
-                f_at_5cm, _, _ = fscore.fscore(raw_cd, raw_cd_back, threshold = 0.05**2)
-                f_at_10cm, _, _ = fscore.fscore(raw_cd, raw_cd_back, threshold = 0.10**2)
-                
-                raw_cd = np.sqrt(np.asarray(raw_cd.cpu()[0]))
-                raw_cd_back = np.sqrt(np.asarray(raw_cd_back.cpu()[0]))
-                cd = raw_cd.mean() + raw_cd_back.mean()
-                '''
-
-                cd, f_at_5cm, f_at_10cm = compute_chamfer_dist_fscore(dph_gt, dph, conf_gt, K, chamLoss, fscore.fscore, mask=None, dep_scale=opts_list[-1].dep_scale)
-
-                #raw_cd_minus_holes, raw_cd_back_minus_holes, _, _ = chamLoss(P_gt_valid_minus_holes[None, ...], P_valid_minus_holes[None, ...])
-                #f_at_5cm_minus_holes, _, _ = fscore.fscore(raw_cd_minus_holes, raw_cd_back_minus_holes, threshold = 0.05**2)
-                #f_at_10cm_minus_holes, _, _ = fscore.fscore(raw_cd_minus_holes, raw_cd_back_minus_holes, threshold = 0.10**2)
-                #raw_cd_minus_holes = np.sqrt(np.asarray(raw_cd_minus_holes.cpu()[0]))
-                #raw_cd_back_minus_holes = np.sqrt(np.asarray(raw_cd_back_minus_holes.cpu()[0]))
-                #cd_minus_holes = raw_cd_minus_holes.mean() + raw_cd_back_minus_holes.mean()
-
-                cds.append(cd)
-                f_at_5cms.append(f_at_5cm.cpu().numpy())
-                f_at_10cms.append(f_at_10cm.cpu().numpy())
-                #cds_minus_holes.append(cd_minus_holes)
-                #f_at_5cms_minus_holes.append(f_at_5cm_minus_holes.cpu().numpy())
-                #f_at_10cms_minus_holes.append(f_at_10cm_minus_holes.cpu().numpy())
           
                 # multi-obj case
                 #for obj_index, sil_obj in enumerate(sil_objs):
@@ -2026,30 +1977,6 @@ def main(_):
                     lpips_obj = compute_lpips(rgb_gt, rgb, lpips_model, mask = mask_obj)
 
                     lpipss_objs[obj_index].append(lpips_obj)
-
-                    # chamfer dist and F-score
-                    '''
-                    # filter out for points with low confidence
-                    x_coord_valid_obj = x_coord[(conf_gt > 1.5) & mask_obj]                          # (H, W)[(H, W) & (H, W)]                                                             
-                    y_coord_valid_obj = y_coord[(conf_gt > 1.5) & mask_obj]                          # (H, W)[(H, W) & (H, W)]                                                             
-                    P_gt_valid_obj = P_gt[y_coord_valid_obj, x_coord_valid_obj, :]                   # (N_valid_obj, 3)
-                    P_valid_obj = P[y_coord_valid_obj, x_coord_valid_obj, :]                         # (N_valid_obj, 3)
-
-                    # compute metrics
-                    raw_cd_obj, raw_cd_back_obj, _, _ = chamLoss(P_gt_valid_obj[None, ...], P_valid_obj[None, ...])
-                    f_at_5cm_obj, _, _ = fscore.fscore(raw_cd_obj, raw_cd_back_obj, threshold = 0.05**2)
-                    f_at_10cm_obj, _, _ = fscore.fscore(raw_cd_obj, raw_cd_back_obj, threshold = 0.10**2)
-
-                    raw_cd_obj = np.sqrt(np.asarray(raw_cd_obj.cpu()[0]))
-                    raw_cd_back_obj = np.sqrt(np.asarray(raw_cd_back_obj.cpu()[0]))
-                    cd_obj = raw_cd_obj.mean() + raw_cd_back_obj.mean()
-                    '''
-
-                    cd_obj, f_at_5cm_obj, f_at_10cm_obj = compute_chamfer_dist_fscore(dph_gt, dph, conf_gt, K, chamLoss, fscore.fscore, mask=mask_obj, dep_scale=opts_list[-1].dep_scale)
-
-                    cds_objs[obj_index].append(cd_obj)
-                    f_at_5cms_objs[obj_index].append(f_at_5cm_obj.cpu().numpy())
-                    f_at_10cms_objs[obj_index].append(f_at_10cm_obj.cpu().numpy())
 
         rgbs_gt_refcam.append(rgb_gt_refcam)
         dph_gt_refcam = depth_to_image(torch.from_numpy(dph_gt_refcam[..., None]))
@@ -2166,32 +2093,19 @@ def main(_):
             np.save("%s-rgberrors.npy"%(opts.nvs_outpath), np.stack(rgb_errors))
             np.save("%s-deptherrors.npy"%(opts.nvs_outpath), np.stack(depth_errors))
             np.save("%s-depaccat10cms.npy"%(opts.nvs_outpath), np.stack(depth_acc_at_10cms))
-            #np.save("%s-rgberrors-minusholes.npy"%(opts.nvs_outpath), np.stack(rgb_errors_minus_holes))
-            #np.save("%s-deptherrors-minusholes.npy"%(opts.nvs_outpath), np.stack(depth_errors_minus_holes))
             
             np.save("%s-psnrs.npy"%(opts.nvs_outpath), np.stack(psnrs))
             np.save("%s-ssims.npy"%(opts.nvs_outpath), np.stack(ssims))
             np.save("%s-lpipss.npy"%(opts.nvs_outpath), np.stack(lpipss))
 
             # metrics averaged over all frames
-            #np.save("%s-rmsrgberror.npy"%(opts.nvs_outpath), np.sqrt(np.mean(np.stack(rgb_errors))))
-            #np.save("%s-rmsdeptherror.npy"%(opts.nvs_outpath), np.sqrt(np.mean(np.stack(depth_errors))))
             np.save("%s-rmsrgberror.npy"%(opts.nvs_outpath), rms_metric_over_allframes(rgb_errors))
             np.save("%s-rmsdeptherror.npy"%(opts.nvs_outpath), rms_metric_over_allframes(depth_errors))
-            #np.save("%s-rmsrgberror-minusholes.npy"%(opts.nvs_outpath), np.sqrt(np.mean(np.stack(rgb_errors_minus_holes))))
-            #np.save("%s-rmsdeptherror-minusholes.npy"%(opts.nvs_outpath), np.sqrt(np.mean(np.stack(depth_errors_minus_holes))))
 
             np.save("%s-depaccat10cm.npy"%(opts.nvs_outpath), average_metric_over_allframes(depth_acc_at_10cms))
             np.save("%s-psnr.npy"%(opts.nvs_outpath), average_metric_over_allframes(psnrs))
             np.save("%s-ssim.npy"%(opts.nvs_outpath), average_metric_over_allframes(ssims))
             np.save("%s-lpips.npy"%(opts.nvs_outpath), average_metric_over_allframes(lpipss))
-            np.save("%s-cd.npy"%(opts.nvs_outpath), average_metric_over_allframes(cds))
-            np.save("%s-fat5cm.npy"%(opts.nvs_outpath), average_metric_over_allframes(f_at_5cms))
-            np.save("%s-fat10cm.npy"%(opts.nvs_outpath), average_metric_over_allframes(f_at_10cms))
-
-            #np.save("%s-cd-minusholes.npy"%(opts.nvs_outpath), np.mean(np.stack(cds_minus_holes)))
-            #np.save("%s-fat5cm-minusholes.npy"%(opts.nvs_outpath), np.mean(np.stack(f_at_5cms_minus_holes)))
-            #np.save("%s-fat10cm-minusholes.npy"%(opts.nvs_outpath), np.mean(np.stack(f_at_10cms_minus_holes)))
 
             rgb_error_maps_max = np.max(np.stack(rgb_error_maps))
             depth_error_maps_max = np.max(np.stack(depth_error_maps))
@@ -2203,81 +2117,10 @@ def main(_):
             if opts.input_view:
                 save_vid('%s-dphabsdiff'%(opts.nvs_outpath), [error_to_image(np.sqrt(depth_error_map) / np.sqrt(depth_error_maps_max), conf_gt) for depth_error_map, conf_gt in zip(depth_error_maps, confs_gt_refcam)], suffix='.mp4', upsample_frame=-1, fps=10)
 
-            print("[ENTIRE IMAGE] RMS RGB ERROR for {} = {}".format(opts.nvs_outpath.split("-")[-1], np.sqrt(np.mean(np.stack(rgb_errors)))))
-            #print("[ENTIRE IMAGE MINUS HOLES] RMS RGB ERROR for {} = {}".format(opts.nvs_outpath.split("-")[-1], np.sqrt(np.mean(np.stack(rgb_errors_minus_holes)[nonempty_frames]))))
             print("[ENTIRE IMAGE] PSNR: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(psnrs))))
             print("[ENTIRE IMAGE] SSIM: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(ssims))))
             print("[ENTIRE IMAGE] LPIPS: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(lpipss))))
             print("[ENTIRE IMAGE] RMS DEPTH ERROR for {} = {}".format(opts.nvs_outpath.split("-")[-1], np.sqrt(np.mean(np.stack(depth_errors)))))
-            #print("[ENTIRE IMAGE MINUS HOLES] RMS DEPTH ERROR for {} = {}".format(opts.nvs_outpath.split("-")[-1], np.sqrt(np.mean(np.stack(depth_errors_minus_holes)[nonempty_frames]))))
-            print("[ENTIRE IMAGE] CD: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(cds))))
-            #print("[ENTIRE IMAGE MINUS HOLES] CD: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(cds_minus_holes))))
-            print("[ENTIRE IMAGE] F @ 5cm: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(f_at_5cms))))
-            #print("[ENTIRE IMAGE MINUS HOLES] F @ 5cm: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(f_at_5cms_minus_holes))))
-            print("[ENTIRE IMAGE] F @ 10cm: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(f_at_10cms))))
-            #print("[ENTIRE IMAGE MINUS HOLES] F @ 10cm: {} = {}".format(opts.nvs_outpath.split("-")[-1], np.mean(np.stack(f_at_10cms_minus_holes))))
-
-            for obj_index in range(len(opts_list)):
-                rgb_errors_obj = rgb_errors_objs[obj_index]
-                depth_errors_obj = depth_errors_objs[obj_index]
-                depth_acc_at_10cms_obj = depth_acc_at_10cms_objs[obj_index]
-
-                psnrs_obj = psnrs_objs[obj_index]
-                ssims_obj = ssims_objs[obj_index]
-                lpipss_obj = lpipss_objs[obj_index]
-                cds_obj = cds_objs[obj_index]
-                f_at_5cms_obj = f_at_5cms_objs[obj_index]
-                f_at_10cms_obj = f_at_10cms_objs[obj_index]
-
-                # fixing case where (sil_gt_obj == 1) is all False (when scene is entirely fg or bkgd)
-                nonempty_frames_obj = np.logical_not(np.isnan(np.stack(rgb_errors_obj)))            # frames with valid masks
-
-                # errors for all frames
-                np.save("%s-rgberrors-obj%d.npy"%(opts.nvs_outpath, obj_index), np.stack(rgb_errors_obj))
-                np.save("%s-deptherrors-obj%d.npy"%(opts.nvs_outpath, obj_index), np.stack(depth_errors_obj))
-                np.save("%s-depaccat10cms-obj%d.npy"%(opts.nvs_outpath, obj_index), np.stack(depth_acc_at_10cms_obj))
-
-                # errors averaged over all frames
-                np.save("%s-rmsrgberror-obj%d.npy"%(opts.nvs_outpath, obj_index), rms_metric_over_allframes(rgb_errors_obj))
-                np.save("%s-rmsdeptherror-obj%d.npy"%(opts.nvs_outpath, obj_index), rms_metric_over_allframes(depth_errors_obj))
-
-                # perceptual metrics averaged over all frames
-                np.save("%s-depaccat10cm-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(depth_acc_at_10cms_obj))
-                np.save("%s-psnr-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(psnrs_obj))
-                np.save("%s-ssim-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(ssims_obj))
-                np.save("%s-lpips-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(lpipss_obj))
-                np.save("%s-cd-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(cds_obj))
-                np.save("%s-fat5cm-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(f_at_5cms_obj))
-                np.save("%s-fat10cm-obj%d.npy"%(opts.nvs_outpath, obj_index), average_metric_over_allframes(f_at_10cms_obj))
-
-                if opts.stereo_view:
-                    list_of_fgmasks_obj = sils_gt_secondcam_raw_objs[obj_index]
-                    confs_gt = confs_gt_secondcam
-                elif opts.input_view:
-                    list_of_fgmasks_obj = sils_gt_refcam_raw_objs[obj_index]
-                    confs_gt = confs_gt_refcam
-
-                # errors averaged over all obj pixels over all frames
-                #np.save("%s-rmsrgberror-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_rms_metric_over_allframes(rgb_errors_obj))
-                np.save("%s-rmsdeptherror-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_rms_metric_over_allframes(depth_errors_obj, list_of_fgmasks_obj, confs_gt))
-
-                # errors averaged over all obj pixels over all frames
-                np.save("%s-depaccat10cm-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(depth_acc_at_10cms_obj, list_of_fgmasks_obj, list_of_confs = confs_gt))
-                np.save("%s-psnr-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(psnrs_obj, list_of_fgmasks_obj))
-                np.save("%s-ssim-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(ssims_obj, list_of_fgmasks_obj))
-                np.save("%s-lpips-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(lpipss_obj, list_of_fgmasks_obj))
-                np.save("%s-cd-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(cds_obj, list_of_fgmasks_obj))
-                #np.save("%s-fat5cm-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(f_at_5cms_obj, list_of_fgmasks_obj))
-                #np.save("%s-fat10cm-pixelavg-obj%d.npy"%(opts.nvs_outpath, obj_index), fg_average_metric_over_allframes(f_at_10cms_obj, list_of_fgmasks_obj))
-
-                print("[OBJ {}] RMS RGB ERROR for {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.sqrt(np.mean(np.stack(rgb_errors_obj)[nonempty_frames_obj]))))
-                print("[OBJ {}] PSNR: {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.mean(np.stack(psnrs_obj)[nonempty_frames_obj])))
-                print("[OBJ {}] SSIM: {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.mean(np.stack(ssims_obj)[nonempty_frames_obj])))
-                print("[OBJ {}] LPIPS: {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.mean(np.stack(lpipss_obj)[nonempty_frames_obj])))
-                print("[OBJ {}] RMS DEPTH ERROR for {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.sqrt(np.mean(np.stack(depth_errors_obj)[nonempty_frames_obj]))))
-                print("[OBJ {}] CD: {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.mean(np.stack(cds_obj)[nonempty_frames_obj])))
-                print("[OBJ {}] F @ 5cm: {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.mean(np.stack(f_at_5cms_obj)[nonempty_frames_obj])))
-                print("[OBJ {}] F @ 10cm: {} = {}".format(obj_index, opts.nvs_outpath.split("-")[-1], np.mean(np.stack(f_at_10cms_obj)[nonempty_frames_obj])))
 
     ###################################################################
     ###################################################################

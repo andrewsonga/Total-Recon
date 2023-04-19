@@ -41,8 +41,13 @@ We provide raw and preprocessed data for the "human-dog", "human-cat", "human2" 
 (1) Download raw data and preprocessed data, and untar them.
 ```
 bash download_rawdata.sh
-bash download_preprocess.sh
+bash download_preprocessed.sh
 
+# untar raw data
+tar -xzvf rawdata_forrelease.tar.gz
+
+# untar preprocess data (approrpriately rename `filename`)
+filename=database_humandog.tar.gz
 tar -xzvf $filename
 ```
 
@@ -54,18 +59,18 @@ tar -xzvf $filename
 src_dir=rawdata_forrelease
 bash place_rawdata.sh $src_dir
 
-# place preprocessed data under database/
+# place preprocessed data under database/ (approrpriately rename `src_dir`)
 # argv[1]: The directory inside Total-Recon where the downloaded preprocessed data is stored
 
-# for e.g.
-src_dir=database_humandog             
-bash place_preprocessed.sh $src_dir
+src_dir=database_humandog   
+tgt_dir=database            
+bash place_preprocessed.sh $src_dir $tgt_dir
 ```
 
-(3) Download the optical flow model for data preprocessing:
+(3) Download the pre-trained VCN optical flow model for data preprocessing (instructions are taken from [BANMo](https://github.com/facebookresearch/banmo/tree/main/preprocess#download-optical-flow-model)):
 ```
 mkdir lasr_vcn
-gdown https://drive.google.com/uc?id=139S6pplPvMTB-_giI6V2dxpOHGqqAdHn -O lasr_vcn/vcn_rob.pth
+wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
 ```
 
 (4) Preprocess raw data
@@ -90,7 +95,7 @@ bash preprocess_rawdata_singleobj.sh cat2-stereo n
 ```
 bash download_models.sh
 
-tar -xzvf $filename
+tar -xzvf pretrained_models_forrelease.tar.gz
 ```
 
 (2) Appropriately place the downloaded pretrained models with the following script:
@@ -104,7 +109,16 @@ bash place_models.sh $src_dir
 
 ## Inference
 
-#### Egocentric View Synthesis
+### Mesh and Root-body Pose Extraction
+Before inference or evaluation can be done, please extract the object-level meshes and root-body poses from the trained model:
+```
+# argv[1]: gpu id (0, 1, 2, ...)
+# argv[2]: folder name of the trained model inside logdir/ (e.g. seqname=humandog-stereo000-leftcam-jointft)
+
+bash extract_fgbg.sh $gpu_id $seqname
+```
+
+### Egocentric View Synthesis
 ```
 bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
 ```
@@ -112,14 +126,14 @@ bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
 Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 
 ```
---fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam --render_cam_inputview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50
+--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50
 ```
 
 </details>
 <br>
 
 
-#### 3rd-Person-Follow (3rd-Pet-Follow) View Synthesis
+### 3rd-Person-Follow (3rd-Pet-Follow) View Synthesis
 ```
 bash scripts/render_nvs_fgbg_tps.sh $gpu $seqname $add_args
 ```
@@ -133,7 +147,7 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 </details>
 <br>
 
-#### Bird's-Eye View Synthesis
+### Bird's-Eye View Synthesis
 ```
 bash scripts/render_nvs_fgbg_bev.sh $gpu $seqname $add_args
 ```
@@ -147,7 +161,7 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 </details>
 <br>
 
-#### Render 6-DoF Root-body Trajectory (Viewed from Bird's Eye View)
+### Render 6-DoF Root-body Trajectory (Viewed from Bird's Eye View)
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_rootbody --render_traj_bev $add_args
 ```
@@ -161,7 +175,7 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 </details>
 <br>
 
-#### Render 6-DoF Egocentric Camera Trajectory (Viewed from Stereo View)
+### Render 6-DoF Egocentric Camera Trajectory (Viewed from Stereo View)
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_fpscam --render_traj_stereoview $add_args
 ```
@@ -175,7 +189,7 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 </details>
 <br>
 
-#### Render 6-DoF 3rd-Person-Follow Camera Trajectory (Viewed from Stereo View)
+### Render 6-DoF 3rd-Person-Follow Camera Trajectory (Viewed from Stereo View)
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_tpscam --render_traj_stereoview $add_args
 ```
@@ -189,7 +203,7 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 </details>
 <br>
 
-#### Render Meshes for Reconstructed Objects, Egocentric Camera (Blue), and 3rd-Person-Follow Camera (Yellow)
+### Render Meshes for Reconstructed Objects, Egocentric Camera (Blue), and 3rd-Person-Follow Camera (Yellow)
 ```
 bash scripts/render_embodied_cams.sh $gpu $seqname $render_view $add_args
 ```
@@ -203,7 +217,7 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 </details>
 <br>
 
-#### Render 3D Video Filters
+### Render 3D Video Filters
 ```
 bash scripts/render_nvs_fgbg_3dfilter.sh $gpu $seqname $add_args
 ```
@@ -219,13 +233,13 @@ Human-dog (seqname=humandog-stereo000-leftcam-jointft)
 
 ## Evaluation
 
-#### Stereo View Synthesis (train on left camera, evaluate on right camera)
+### Stereo View Synthesis (train on left camera, evaluate on right camera)
 ```
 bash scripts/render_nvs_fgbg_stereoview.sh $gpu $seqname
 python print_metrics.py --seqname $seqname --view stereoview
 ```
 
-#### Train View Synthesis (train and evaluate on left camera)
+### Train View Synthesis (train and evaluate on left camera)
 ```
 bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname
 python print_metrics.py --seqname $seqname --view inputview

@@ -20,8 +20,6 @@ from scipy.spatial.transform import Rotation as R
 import imageio
 from collections import defaultdict
 import configparser
-import chamfer3D.dist_chamfer_3D
-import fscore     
 from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from utils.io import save_vid, str_to_frame, save_bones, load_root, load_sils, depth_to_image, error_to_image
@@ -32,7 +30,7 @@ from nnutils.geom_utils import obj_to_cam, pinhole_cam, obj2cam_np, tensor2array
                                 chunk_rays
 from nnutils.rendering import render_rays_objs
 from nnutils.eval_utils import im2tensor, calculate_psnr, calculate_ssim
-from nnutils.eval_utils import compute_psnr, compute_ssim, compute_lpips, compute_depth_error, compute_chamfer_dist_fscore, rms_metric_over_allframes, average_metric_over_allframes
+from nnutils.eval_utils import compute_psnr, compute_ssim, compute_lpips, compute_depth_error, rms_metric_over_allframes, average_metric_over_allframes
 from dataloader.vidbase import read_depth, read_conf
 import pyrender
 from pyrender import IntrinsicsCamera,Mesh, Node, Scene,OffscreenRenderer
