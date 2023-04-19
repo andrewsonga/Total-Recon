@@ -219,7 +219,7 @@ bash scripts/render_nvs_fgbg_bev.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
---fg_obj_index 0 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15
+add_args=--fg_obj_index 0 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15
 ```
 
 2) Human-cat
