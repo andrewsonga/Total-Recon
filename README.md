@@ -3,9 +3,17 @@
 
 This is the official PyTorch implementation of "Total-Recon: Deformable Scene Reconstruction for Embodied View Synthesis". 
 
+<a href="https://andrewsonga.github.io">Chonghyuk (Andrew) Song</a>, <a href="https://gengshan-y.github.io">Gengshan Yang</a>, <a href="https://dunbar12138.github.io">Kangle Deng</a>, <a href="https://www.cs.cmu.edu/~junyanz/">Jun-Yan Zhu</a>, <a href="https://www.cs.cmu.edu/~deva/">Deva Ramanan</a>.
+<br>
+Carnegie Mellon University
+<br>
+arXiv 2023
+
 https://user-images.githubusercontent.com/20153928/232976346-581c6080-6451-4306-bbf2-e9a34aea1599.mp4
 
 Given a long video of deformable objects captured by a handheld RGBD sensor, Total-Recon renders the scene from novel camera trajectories derived from in-scene motion of actors: (1) egocentric cameras that simulate the point-of-view of a target actor (such as the pet) and (2) 3rd-person (or pet) cameras that follow the actor from behind. Our method also enables (3) 3D video filters that attach virtual 3D assets to the actor. Total-Recon achieves this by reconstructing the geometry, appearance, and root-body and articulated motion of each deformable object in the scene as well as the background.
+
+
 
 ## Getting Started
 
@@ -484,3 +492,7 @@ The rendered videos will be saved as `nvs-inputview-*.mp4` inside `logdir/$seqna
 bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname
 python print_metrics.py --seqname $seqname --view inputview
 ```
+
+## Acknowledgements
+
+We thank Nathaniel Chodosh, Jeff Tan, George Cazenavette, and Jason Zhang for proofreading our paper and Songwei Ge for reviewing our code. We thank Sheng-Yu Wang, Daohan (Fred) Lu, Tamaki Kojima, Krishna Wadhwani, Takuya Narihira, and Tatsuo Fujiwara as well for providing valuable feedback. This work is supported in part by the Sony Corporation and the CMU Argo AI Center for Autonomous Vehicle Research. This codebase is heavily based on [BANMo](https://github.com/facebookresearch/banmo).
