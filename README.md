@@ -116,9 +116,9 @@ bash place_models.sh $src_dir
 ```
 
 ### 3D Assets
-To run the 3D video filter and to be able to visualize flying embodied-view cameras, purchase and download 3D models in .obj format for 1) [the unicorn horn](https://www.turbosquid.com/3d-models/3d-unicorn-horn-1510343), and 2) [a Canon camera](https://www.cgtrader.com/3d-models/electronics/video/canon-eos-5d-mark-iii-876c89b9-350b-45fc-8420-9d4df6471e65). 
+To run the 3D video filter and to be able to visualize flying embodied-view cameras, purchase and download 3D models in .obj format for 1) [the unicorn horn](https://www.turbosquid.com/3d-models/3d-unicorn-horn-1510343), and 2) [the Canon camera](https://www.cgtrader.com/3d-models/electronics/video/canon-eos-5d-mark-iii-876c89b9-350b-45fc-8420-9d4df6471e65). 
 
-Rename the .obj file for the camera mesh to `camera.obj`, then place the file `camera.obj` and unzipper folder `UnicornHorn_OBJ` inside `mesh_material`.
+Rename the .obj file for the camera mesh to `camera.obj`, then place the file `camera.obj` and unzipped folder `UnicornHorn_OBJ` inside `mesh_material`.
 
 ## Inference
 
