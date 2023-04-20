@@ -3,7 +3,7 @@
 
 This is the official PyTorch implementation of "Total-Recon: Deformable Scene Reconstruction for Embodied View Synthesis". 
 
-<a href="https://andrewsonga.github.io">Chonghyuk (Andrew) Song</a>, <a href="https://gengshan-y.github.io">Gengshan Yang</a>, <a href="https://dunbar12138.github.io">Kangle Deng</a>, <a href="https://www.cs.cmu.edu/~junyanz/">Jun-Yan Zhu</a>, <a href="https://www.cs.cmu.edu/~deva/">Deva Ramanan</a>.
+<a href="https://andrewsonga.github.io">Chonghyuk Song</a>, <a href="https://gengshan-y.github.io">Gengshan Yang</a>, <a href="https://dunbar12138.github.io">Kangle Deng</a>, <a href="https://www.cs.cmu.edu/~junyanz/">Jun-Yan Zhu</a>, <a href="https://www.cs.cmu.edu/~deva/">Deva Ramanan</a>
 <br>
 Carnegie Mellon University
 <br>
