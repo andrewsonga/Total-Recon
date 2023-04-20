@@ -1,1 +1,1 @@
-scp ndsong@kobra.ri.cmu.edu:/home/ndsong/workspace/rawdata_forrelease.tar.gz ./
+wget https://www.cs.cmu.edu/~totalrecon/rawdata_forrelease.tar.gz
