@@ -1,3 +1,14 @@
+# This code is built upon the BANMo repository: https://github.com/facebookresearch/banmo.
+# Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
+
+# ==========================================================================================
+#
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# To view a copy of the license, visit LICENSE.md.
+#
+# ==========================================================================================
+
 rootdir=raw/
 tmpdir=tmp/
 prefix=$1                                       # e.g. human-dualrig, cat-dualrig, dog-dualrig
@@ -9,6 +20,9 @@ finaloutdir=database/DAVIS/
 ishuman=$2 # y/n
 isdynamic=$3 # y/n
 
+# create required dirs
+mkdir -p tmp
+mkdir -p database/DAVIS/
 mkdir -p raw/output
 
 counter=0

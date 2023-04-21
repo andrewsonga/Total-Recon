@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 import os
 import json
 from scipy.spatial.transform import Rotation as R
@@ -40,6 +42,7 @@ def read_conf(filepath, image_size):
 
     return conf_img
 
+# Taken from stackoverflow: https://stackoverflow.com/questions/30299267/geometric-median-of-multidimensional-points
 def geometric_median(X, eps=1e-5):
     y = np.mean(X, 0)
 
@@ -134,8 +137,6 @@ def read_rtks(metadata_dir, depth_dir, conf_dir, recenter=False):
 
     #global shift (this is wrong, we should do global shift before we invert cam2world)
     #world2cam_trans = world2cam_trans - np.repeat(point_3d_median[None, :, None], world2cam_trans.shape[0] , axis = 0)      # (N, 3, 1) - (N, 3, 1) 
-
-    #world2cam_trans = world2cam_trans      # we've moved scaling the gt cameras and depth maps to inside nnutils/train_utils.py and nnutils/rendering.py
     world2cam_rt = np.concatenate([world2cam_rot, world2cam_trans], axis = -1)      # (N, 3, 4)
 
     K_compact = np.array([K[0], K[4], K[6], K[7]])

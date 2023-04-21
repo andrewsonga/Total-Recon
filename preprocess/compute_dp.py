@@ -1,4 +1,13 @@
+# This code is built upon the BANMo repository: https://github.com/facebookresearch/banmo.
 # Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
+
+# ==========================================================================================
+#
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# To view a copy of the license, visit LICENSE.md.
+#
+# ==========================================================================================
 
 import cv2
 import glob
@@ -68,6 +77,8 @@ for i,path in enumerate(sorted(glob.glob('%s/*'%imgdir))):
     msk = cv2.imread(path.replace('JPEGImages', 'Annotations').replace('.jpg', '.png'), 0)
     h,w = img.shape[:2]
     
+    ########################################################################################
+    ############################# modified by Chonghyuk Song ###############################
     # recompte mask    
     # multi fg-obj case (post 10/09/22) 
     # commenting the following line to account for cases where msk only contains values of 0 and 254, which when normalized, ends up assigning a mask of value 0 and 254
@@ -90,6 +101,8 @@ for i,path in enumerate(sorted(glob.glob('%s/*'%imgdir))):
     # multi fg-obj case (post 10/09/22) 
     # resizing has to be done with cv2.INTER_NEAREST in order to ensure proper computation of the bounding box       
     msk_rszd = cv2.resize(msk,(w_rszd,h_rszd), interpolation=cv2.INTER_NEAREST)
+    ########################################################################################
+    ########################################################################################
 
     # densepose
     clst_verts, image_bgr1, embedding, embedding_norm, bbox = run_cse(

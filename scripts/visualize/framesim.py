@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 """
 bash scripts/compute_framesim.sh
 """

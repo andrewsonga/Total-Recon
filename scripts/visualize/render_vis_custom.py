@@ -1,11 +1,5 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
-######################################################################
-#################### modified by Chonghyuk Song ######################
-
-######################################################################
-######################################################################
-
 import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(sys.path[0])))
 os.environ["PYOPENGL_PLATFORM"] = "egl" #opengl seems to only work with TPU

@@ -1,4 +1,13 @@
+# This code is built upon the BANMo repository: https://github.com/facebookresearch/banmo.
 # Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
+
+# ==========================================================================================
+#
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# To view a copy of the license, visit LICENSE.md.
+#
+# ==========================================================================================
 
 from absl import flags, app
 import sys

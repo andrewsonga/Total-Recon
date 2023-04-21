@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 import os, sys
 import numpy as np
 import random
