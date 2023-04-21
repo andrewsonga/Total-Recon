@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 import numpy as np
 import glob
 import argparse

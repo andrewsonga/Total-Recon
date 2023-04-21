@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 src_dir=$1
 tgt_dir=logdir
 

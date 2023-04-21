@@ -3,7 +3,7 @@
 
 # ==========================================================================================
 #
-# Carnegie Mellon University’s modifications are Copyright (c) 2023 Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
 # Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
 # To view a copy of the license, visit LICENSE.md.
 #

@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 # humandog sequence
 FILEID_HUMANDOG='1OA21wk6D4Tq3ADogp_7AzZGeCxlZdlGr'
 wget "https://drive.google.com/uc?export=download&id=${FILEID_HUMANDOG}&confirm=yes" -O ./database_humandog.tar.gz

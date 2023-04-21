@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 prefix=$1
 ishuman=$2          # y/n
 isdynamic=y         # y/n

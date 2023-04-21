@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 gpu_id=$1
 seqname=$2
 add_args=${*: 3:$#-1}

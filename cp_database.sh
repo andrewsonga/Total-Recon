@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 src_seqname=$1
 tgt_seqname=$2
 src_database_dir=database/DAVIS

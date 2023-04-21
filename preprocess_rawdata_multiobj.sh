@@ -1,3 +1,5 @@
+# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 prefix=$1
 isdynamic=y        # y/n
 rootdir=raw
