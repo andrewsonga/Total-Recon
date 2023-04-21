@@ -1,4 +1,3 @@
-
 # This code is built upon the NSFF repository: https://github.com/zhengqili/Neural-Scene-Flow-Fields.
 # Copyright (c) 2021, Zhengqi Li. All rights reserved.
 
