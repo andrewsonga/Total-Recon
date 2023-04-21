@@ -1,4 +1,15 @@
-# Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
+# This code is built upon the NSFF repository: https://github.com/zhengqili/Neural-Scene-Flow-Fields.
+# Copyright (c) 2021, Zhengqi Li. All rights reserved.
+
+# ==========================================================================================
+#
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# To view a copy of the license, visit LICENSE.md.
+#
+# ==========================================================================================
+
 
 import os, sys
 import numpy as np
