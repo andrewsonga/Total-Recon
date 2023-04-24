@@ -87,7 +87,7 @@ mkdir lasr_vcn
 wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
 ```
 
-(4) Preprocess raw data
+(4) Preprocess raw data (don't run if you have already downloaded preprocessed data)
 
 Multi-foreground-object sequences (e.g. humandog):
 ```
