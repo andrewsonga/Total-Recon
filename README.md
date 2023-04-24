@@ -139,6 +139,9 @@ bash extract_fgbg.sh $gpu_id $seqname
 ```
 
 ### Egocentric View Synthesis
+
+https://user-images.githubusercontent.com/20153928/234135753-610bc744-789e-4174-9b75-f7c979376506.mp4
+
 The rendered videos will be saved as `nvs-fpsview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
@@ -183,6 +186,9 @@ add_args=--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 11475
 
 
 ### 3rd-Person-Follow (3rd-Pet-Follow) View Synthesis
+
+https://user-images.githubusercontent.com/20153928/234136211-02241af4-9e7b-486e-a2d3-36c21f384ecc.mp4
+
 The rendered videos will be saved as `nvs-tpsview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_tps.sh $gpu $seqname $add_args
@@ -226,6 +232,9 @@ add_args=--thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y
 <br>
 
 ### Bird's-Eye View Synthesis
+
+https://user-images.githubusercontent.com/20153928/234136114-e4b29bde-db35-466d-bde5-a9592dc6f341.mp4
+
 The rendered videos will be saved as `nvs-bev-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_bev.sh $gpu $seqname $add_args
@@ -269,6 +278,9 @@ add_args=--fg_obj_index 0 --fix_frame 40 --topdowncam_offset_x -0.070 --topdownc
 <br>
 
 ### Render 6-DoF Root-body Trajectory (Viewed from Bird's Eye View)
+
+https://user-images.githubusercontent.com/20153928/234136515-e83aac52-92e7-45bc-83fa-320f5a9afecd.mp4
+
 The rendered video will be saved as `nvs-bev-traj-rootbody-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_rootbody --render_traj_bev $add_args
@@ -312,6 +324,9 @@ add_args=--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 40 --topdowncam_off
 <br>
 
 ### Render 6-DoF Egocentric Camera Trajectory (Viewed from Stereo View)
+
+https://user-images.githubusercontent.com/20153928/234138748-29303cd9-9876-417f-ac46-6553b73c5e3d.mp4
+
 The rendered video will be saved as `nvs-stereoview-traj-fpscam-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_fpscam --render_traj_stereoview $add_args
@@ -355,6 +370,9 @@ add_args=--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 11475
 <br>
 
 ### Render 6-DoF 3rd-Person-Follow Camera Trajectory (Viewed from Stereo View)
+
+https://user-images.githubusercontent.com/20153928/234137853-24000a96-32b6-4ad2-8d9c-bcee3639a129.mp4
+
 The rendered video will be saved as `nvs-stereoview-traj-tpscam-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_tpscam --render_traj_stereoview $add_args
@@ -398,6 +416,9 @@ add_args=--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x -0.05 --
 <br>
 
 ### Render Meshes for Reconstructed Objects, Egocentric Camera (Blue), and 3rd-Person-Follow Camera (Yellow)
+
+https://user-images.githubusercontent.com/20153928/234138995-1407d81d-7657-4bd9-8f52-757b852a379d.mp4
+
 The rendered video will be saved as `nvs-embodied-cams-mesh.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_embodied_cams.sh $gpu $seqname $render_view $add_args
@@ -441,6 +462,9 @@ add_args=--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 11475
 <br>
 
 ### Render 3D Video Filters
+
+https://user-images.githubusercontent.com/20153928/234139260-0f26370b-e0b3-4594-9a03-27635ad3d09c.mp4
+
 The rendered video will be saved as `nvs-inputview-rgb_with_asset.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_3dfilter.sh $gpu $seqname $add_args
