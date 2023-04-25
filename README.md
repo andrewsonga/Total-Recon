@@ -529,6 +529,23 @@ bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname
 python print_metrics.py --seqname $seqname --view inputview
 ```
 
+---
+
+## Citation
+
+If you find this repository useful for your research, please cite the following work.
+```
+@article{song2023totalrecon,
+  title={Total-Recon: Deformable Scene Reconstruction for Embodied View Synthesis},
+  author={Song, Chonghyuk and Yang, Gengshan and 
+          Deng, Kangle and Zhu, Jun-Yan and Ramanan, Deva},
+  journal={arXiv},
+  year={2023}
+}
+```
+
+---
+
 ## Acknowledgements
 
 We thank Nathaniel Chodosh, Jeff Tan, George Cazenavette, and Jason Zhang for proofreading our paper and Songwei Ge for reviewing our code. We also thank Sheng-Yu Wang, Daohan (Fred) Lu, Tamaki Kojima, Krishna Wadhwani, Takuya Narihira, and Tatsuo Fujiwara as well for providing valuable feedback. This work is supported in part by the Sony Corporation and the CMU Argo AI Center for Autonomous Vehicle Research. This codebase is heavily based on [BANMo](https://github.com/facebookresearch/banmo) and also uses evaluation code from [NSFF](https://github.com/zhengqili/Neural-Scene-Flow-Fields).
