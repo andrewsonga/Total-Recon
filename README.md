@@ -510,6 +510,9 @@ add_args=--fg_obj_index 0 --input_view --asset_obj_index 0 --fg_normalbase_verte
 ## Evaluation
 
 ### Stereo View Synthesis (train on left camera, evaluate on right camera)
+
+https://user-images.githubusercontent.com/20153928/234140387-abb39e13-f305-46ee-829e-118d9eaa22eb.mp4
+
 The rendered videos will be saved as `nvs-stereoview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_stereoview.sh $gpu $seqname
@@ -517,6 +520,9 @@ python print_metrics.py --seqname $seqname --view stereoview
 ```
 
 ### Train View Synthesis (train and evaluate on left camera)
+
+https://user-images.githubusercontent.com/20153928/234143341-aab9935b-5604-4ca2-a568-874cae96ffec.mp4
+
 The rendered videos will be saved as `nvs-inputview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname
