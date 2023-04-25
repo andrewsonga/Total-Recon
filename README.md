@@ -1,5 +1,5 @@
 # Total-Recon: Deformable Scene Reconstruction for Embodied View Synthesis
-#### [**Project**](https://andrewsonga.github.io/totalrecon/) | [**Paper**](https://andrewsonga.github.io/totalrecon/) 
+#### [**Project**](https://andrewsonga.github.io/totalrecon/) | [**Paper**](https://arxiv.org/abs/2304.12317) 
 
 This is the official PyTorch implementation of "Total-Recon: Deformable Scene Reconstruction for Embodied View Synthesis". 
 
