@@ -55,12 +55,14 @@ We provide raw and preprocessed data for the "human-dog", "human-cat", "human2" 
 (1) Download raw data and preprocessed data, and untar them.
 ```
 bash download_rawdata.sh
+# the zipped preprocessed data will take up around a total of 90Gb
 bash download_preprocessed.sh
 
 # untar raw data
 tar -xzvf rawdata_forrelease.tar.gz
 
 # untar preprocess data (approrpriately rename `filename`)
+# the unzipped preprocessed data will take up around a total of 100Gb
 filename=database_humandog.tar.gz
 tar -xzvf $filename
 ```
@@ -87,7 +89,7 @@ mkdir lasr_vcn
 wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
 ```
 
-(4) Preprocess raw data (don't run if you have already downloaded preprocessed data)
+(4) Preprocess raw data (takes around a few hours; don't run if you have already downloaded preprocessed data)
 
 Multi-foreground-object sequences (e.g. humandog):
 ```
@@ -142,6 +144,7 @@ bash extract_fgbg.sh $gpu_id $seqname
 
 https://user-images.githubusercontent.com/20153928/234135753-610bc744-789e-4174-9b75-f7c979376506.mp4
 
+(takes around a few hours)
 The rendered videos will be saved as `nvs-fpsview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
@@ -189,6 +192,7 @@ add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 1147
 
 https://user-images.githubusercontent.com/20153928/234136211-02241af4-9e7b-486e-a2d3-36c21f384ecc.mp4
 
+(takes around a few hours)
 The rendered videos will be saved as `nvs-tpsview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_tps.sh $gpu $seqname $add_args
@@ -235,6 +239,7 @@ add_args='--thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_
 
 https://user-images.githubusercontent.com/20153928/234136114-e4b29bde-db35-466d-bde5-a9592dc6f341.mp4
 
+(takes around a few hours)
 The rendered videos will be saved as `nvs-bev-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_bev.sh $gpu $seqname $add_args
@@ -281,6 +286,7 @@ add_args='--fg_obj_index 0 --fix_frame 40 --topdowncam_offset_x -0.070 --topdown
 
 https://user-images.githubusercontent.com/20153928/234136515-e83aac52-92e7-45bc-83fa-320f5a9afecd.mp4
 
+(takes around an hour)
 The rendered video will be saved as `nvs-bev-traj-rootbody-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_rootbody --render_traj_bev $add_args
@@ -327,6 +333,7 @@ add_args='--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 40 --topdowncam_of
 
 https://user-images.githubusercontent.com/20153928/234138748-29303cd9-9876-417f-ac46-6553b73c5e3d.mp4
 
+(takes around an hour)
 The rendered video will be saved as `nvs-stereoview-traj-fpscam-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_fpscam --render_traj_stereoview $add_args
@@ -373,6 +380,7 @@ add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 1147
 
 https://user-images.githubusercontent.com/20153928/234137853-24000a96-32b6-4ad2-8d9c-bcee3639a129.mp4
 
+(takes around an hour)
 The rendered video will be saved as `nvs-stereoview-traj-tpscam-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_traj.sh $gpu $seqname --render_tpscam --render_traj_stereoview $add_args
@@ -419,6 +427,7 @@ add_args='--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x -0.05 -
 
 https://user-images.githubusercontent.com/20153928/234138995-1407d81d-7657-4bd9-8f52-757b852a379d.mp4
 
+(takes around an hour)
 The rendered video will be saved as `nvs-embodied-cams-mesh.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_embodied_cams.sh $gpu $seqname $render_view $add_args
@@ -465,6 +474,7 @@ add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 1147
 
 https://user-images.githubusercontent.com/20153928/234139260-0f26370b-e0b3-4594-9a03-27635ad3d09c.mp4
 
+(takes around a few hours)
 The rendered video will be saved as `nvs-inputview-rgb_with_asset.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_3dfilter.sh $gpu $seqname $add_args
@@ -513,6 +523,7 @@ add_args='--fg_obj_index 0 --input_view --asset_obj_index 0 --fg_normalbase_vert
 
 https://user-images.githubusercontent.com/20153928/234140387-abb39e13-f305-46ee-829e-118d9eaa22eb.mp4
 
+(takes around a few hours)
 The rendered videos will be saved as `nvs-stereoview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_stereoview.sh $gpu $seqname
@@ -523,6 +534,7 @@ python print_metrics.py --seqname $seqname --view stereoview
 
 https://user-images.githubusercontent.com/20153928/234143341-aab9935b-5604-4ca2-a568-874cae96ffec.mp4
 
+(takes around a few hours)
 The rendered videos will be saved as `nvs-inputview-*.mp4` inside `logdir/$seqname/`
 ```
 bash scripts/render_nvs_fgbg_inputview.sh $gpu $seqname
