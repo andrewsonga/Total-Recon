@@ -7,7 +7,7 @@ This is the official PyTorch implementation of "Total-Recon: Deformable Scene Re
 <br>
 Carnegie Mellon University
 <br>
-arXiv 2023
+ICCV 2023
 
 https://user-images.githubusercontent.com/20153928/232976346-581c6080-6451-4306-bbf2-e9a34aea1599.mp4
 
