@@ -430,6 +430,7 @@ https://user-images.githubusercontent.com/20153928/234138995-1407d81d-7657-4bd9-
 (takes around an hour)
 The rendered video will be saved as `nvs-embodied-cams-mesh.mp4` inside `logdir/$seqname/`
 ```
+render_view="--stereo_view"      # set as "--input_view" to render meshes from training view
 bash scripts/render_embodied_cams.sh $gpu $seqname $render_view $add_args
 ```
 
