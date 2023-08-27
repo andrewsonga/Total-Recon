@@ -133,11 +133,11 @@ Rename the .obj file for the camera mesh to `camera.obj`, then place the file `c
 ### Mesh and Root-body Pose Extraction
 Before inference or evaluation can be done, please extract the object-level meshes and root-body poses from the trained model:
 ```
-# argv[1]: gpu id (0, 1, 2, ...)
+# argv[1]: gpu number (0, 1, 2, ...)
 # argv[2]: folder name of the trained model inside logdir/
 
 seqname=humandog-stereo000-leftcam-jointft    # (appropriately rename `seqname`)
-bash extract_fgbg.sh $gpu_id $seqname
+bash extract_fgbg.sh $gpu $seqname
 ```
 
 ### Egocentric View Synthesis
