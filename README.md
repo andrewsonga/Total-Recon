@@ -440,7 +440,7 @@ bash scripts/render_embodied_cams.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50'
+add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --asset_offset_z -0.05 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --scale_fps 1.0 --scale_tps 1.0'
 ```
 
 2) Human-cat
