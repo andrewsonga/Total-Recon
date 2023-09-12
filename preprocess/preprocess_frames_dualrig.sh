@@ -89,7 +89,8 @@ for infile_leftcam in `ls -d $filedir_leftcam/*`; do                # filedir = 
     ######################################## modified by Chonghyuk Song ###########################################
     # $prefix$(printf "%03d" $counter): e.g. human-dualrig000
     
-    python preprocess/mask_dualrig.py $prefix$(printf "%03d" $counter) $ishuman $prefix $isdynamic
+    #python preprocess/mask_dualrig.py $prefix$(printf "%03d" $counter) $ishuman $prefix $isdynamic
+    python preprocess/mask_dualrig.py $prefix$(printf "%03d" $counter) $ishuman $isdynamic
     echo "[STEP 1] COMPUTED SEGMENTATIONS for $prefix$(printf "%03d" $counter)"
     ###############################################################################################################
     ###############################################################################################################

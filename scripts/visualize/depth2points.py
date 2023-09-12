@@ -29,7 +29,7 @@ from collections import defaultdict
 from dataloader.vidbase import read_depth, read_conf
 from utils.io import save_vid, str_to_frame, save_bones, load_root, load_sils, depth_to_image
 from utils.colors import label_colormap
-from nnutils.train_utils_objs import v2s_trainer_objs
+from nnutils.train_utils import v2s_trainer_objs
 from nnutils.geom_utils import obj_to_cam, tensor2array, vec_to_sim3, \
                                 raycast, sample_xy, K2inv, get_near_far, \
                                 chunk_rays

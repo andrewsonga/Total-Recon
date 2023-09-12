@@ -1,4 +1,14 @@
+# This code is built upon the BANMo repository: https://github.com/facebookresearch/banmo.
 # Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
+
+# ==========================================================================================
+#
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# To view a copy of the license, visit LICENSE.md.
+#
+# ==========================================================================================
+
 import pickle
 import cv2
 import numpy as np
@@ -60,7 +70,14 @@ def run_cse(model, embedder, mesh_vertex_embeddings, image, mask, mesh_name='smp
     else:
         h_rszd, w_rszd = max_size*h//w, max_size
     image = cv2.resize(image, (w_rszd, h_rszd))
-    mask = cv2.resize(mask.astype(float), (w_rszd, h_rszd)).astype(np.uint8)
+    
+    # single fg-obj case (pre 10/09/22)
+    #mask = cv2.resize(mask.astype(float), (w_rszd, h_rszd)).astype(np.uint8)
+    # multi fg-obj case (post 10/09/22) 
+    # resizing has to be done with cv2.INTER_NEAREST in order to ensure proper computation of the bounding box       
+    mask = cv2.resize(mask.astype(float), (w_rszd, h_rszd), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
+
+    print("mask unique: {}".format(np.unique(mask)))
 
     # pad
     h_pad = (1+h_rszd//32)*32
@@ -74,7 +91,11 @@ def run_cse(model, embedder, mesh_vertex_embeddings, image, mask, mesh_name='smp
     image_raw = image.copy()
    
     # preprocess image and box 
-    indices = np.where(mask>0); xid = indices[1]; yid = indices[0]
+    # single fg-obj case (pre 10/09/22)
+    #indices = np.where(mask>0); xid = indices[1]; yid = indices[0]
+    
+    # multi fg-obj case (post 10/09/22)      
+    indices = np.where(((0 < mask) & (mask < 254)) | (mask == 255)); xid = indices[1]; yid = indices[0]
     center = ( (xid.max()+xid.min())//2, (yid.max()+yid.min())//2)
     length = ( int((xid.max()-xid.min())*1.//2), int((yid.max()-yid.min())*1.//2))
     bbox = [center[0]-length[0], center[1]-length[1],length[0]*2, length[1]*2]
@@ -106,7 +127,12 @@ def run_cse(model, embedder, mesh_vertex_embeddings, image, mask, mesh_name='smp
     x, y, xx, yy= bbox
     mask_box = mask[y:yy, x:xx]
     mask_box = torch.Tensor(mask_box).cuda()[None,None]
-    mask_box = F.interpolate(mask_box, coarse_segm_resized.shape[1:3], mode='bilinear')[0,0]>0
+    # single fg-obj case (pre 10/09/22)
+    #mask_box = F.interpolate(mask_box, coarse_segm_resized.shape[1:3], mode='bilinear')[0,0]>0
+    # multi fg-obj case (post 10/09/22) 
+    # resizing has to be done with cv2.INTER_NEAREST in order to ensure proper computation of the bounding box       
+    mask_box = F.interpolate(mask_box, coarse_segm_resized.shape[1:3], mode='nearest')[0,0]
+    mask_box = torch.logical_or(torch.logical_and(mask_box > 0, mask_box < 254), mask_box == 255)
 
     # find closest match (in the cropped/resized coordinate)
     clst_verts_pad = torch.zeros(h_pad, w_pad).long().cuda()

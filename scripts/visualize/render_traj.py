@@ -33,7 +33,7 @@ from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from utils.io import save_vid, draw_cams, str_to_frame, save_bones, load_root, load_sils, depth_to_image, error_to_image
 from utils.colors import label_colormap
-from nnutils.train_utils_objs import v2s_trainer_objs
+from nnutils.train_utils import v2s_trainer_objs
 from nnutils.geom_utils import obj_to_cam, pinhole_cam, obj2cam_np, tensor2array, vec_to_sim3, \
                                 raycast, sample_xy, K2inv, get_near_far, \
                                 chunk_rays

@@ -27,19 +27,18 @@ import time
 
 from utils.io import save_vid, str_to_frame, save_bones
 from utils.colors import label_colormap
-from nnutils.train_utils_objs import v2s_trainer_objs
+from nnutils.train_utils import v2s_trainer_objs
 from nnutils.geom_utils import obj_to_cam, tensor2array, vec_to_sim3, obj_to_cam
 from ext_utils.util_flow import write_pfm
-from ext_utils.flowlib import cat_imgflo 
+from ext_utils.flowlib import cat_imgflo
 
-flags.DEFINE_bool('recon_bkgd',False,'whether or not object in question is reconstructing the background (determines self.crop_factor in BaseDataset')
+#flags.DEFINE_bool('recon_bkgd',False,'whether or not object in question is reconstructing the background (determines self.crop_factor in BaseDataset')
 flags.DEFINE_multi_string('loadname_objs', 'None', 'name of folder inside \logdir to load into fg banmo object')
 flags.DEFINE_multi_string('savename_objs', 'None', 'name of folder inside \logdir to load into fg banmo object')
-#flags.DEFINE_string('loadname_fg', 'None', 'name of folder inside \logdir to load into fg banmo object')
-#flags.DEFINE_string('loadname_bkgd', 'None', 'name of folder inside \logdir to load into bkgd banmo object')
+flags.DEFINE_bool('extract_mesh',True,'whether or not to extract object meshes')
 opts = flags.FLAGS
                 
-def save_output_obj(obj_index, rendered_seq, aux_seq, save_dir_obj, save_flo):
+def save_output_obj(obj_index, rendered_seq, aux_seq, save_dir_obj, save_flo, extract_mesh):
     #save_dir_obj = '%s/obj%d/'%(save_dir, obj_index)
     length = len(aux_seq['mesh'])
     mesh_rest = aux_seq['mesh_rest']
@@ -64,15 +63,16 @@ def save_output_obj(obj_index, rendered_seq, aux_seq, save_dir_obj, save_flo):
         mesh = aux_seq['mesh'][i]
         rtk = aux_seq['rtk'][i]
         
-        try:
-            # convert bones to meshes TODO: warp with a function
-            if 'bone' in aux_seq.keys() and len(aux_seq['bone'])>0:
-                bones = aux_seq['bone'][i]
-                bone_path = '%s-bone-%05d.obj'%(save_prefix, idx)
-                save_bones(bones, len_max, bone_path)
-            mesh.export('%s-mesh-%05d.obj'%(save_prefix, idx))
-        except:
-            pass
+        if extract_mesh:
+            try:
+                # convert bones to meshes TODO: warp with a function
+                if 'bone' in aux_seq.keys() and len(aux_seq['bone'])>0:
+                    bones = aux_seq['bone'][i]
+                    bone_path = '%s-bone-%05d.obj'%(save_prefix, idx)
+                    save_bones(bones, len_max, bone_path)
+                mesh.export('%s-mesh-%05d.obj'%(save_prefix, idx))
+            except:
+                pass
         np.savetxt('%s-cam-%05d.txt'  %(save_prefix, idx), rtk)
         print("obj %d: saved bone, mesh, and cam index %05d"%(obj_index, idx))
     
@@ -110,9 +110,6 @@ def main(_):
         # loading from pretrained models or jointly trained-from-scratch model
         savename_objs = ["{}/{}".format(opts.checkpoint_dir, savename_obj) for savename_obj in opts.savename_objs]
 
-    #loadname_objs = ["logdir/human-dualrig002-leftcam-e120-b256-ft2", "logdir/human-dualrig-fgbg002-leftcam-eikonalwt0p001-e120-b256-ft2"]
-    #loadname_objs = ["logdir/cat-pikachiu-rgbd0-ds-alignedframes-frame380-focal800-depscale0p2-depwt1-vismesh-e120-b256-ft2", "logdir/cat-pikachiu-rgbd-bkgd0-ds-alpha6to10-alignedframes-frame380-focal800-depscale0p2-vismesh-e120-b256-ft2"]
-    #loadname_objs = ["logdir/andrew-dualcam000-depscale0p2-e120-b256-ft2", "logdir/andrew-dualcam-bkgd000-colmap-ds-depscale0p2-e120-b256-ft2"]
     opts_list = []
 
     for obj_index, (loadname_obj, savename_obj) in enumerate(zip(loadname_objs, savename_objs)):
@@ -202,7 +199,7 @@ def main(_):
         #save_output(rendered_seq, aux_seq, seqname, save_flo=opts.use_corresp)
         for obj_index, (loadname_obj, savename_obj) in enumerate(zip(loadname_objs, savename_objs)):
             # saves dynamic meshes and camera poses in logdir/opts.seqname/obj%0d/
-            save_output_obj(obj_index, rendered_seq, aux_seq_objs[obj_index], savename_obj, save_flo=opts.use_corresp)
+            save_output_obj(obj_index, rendered_seq, aux_seq_objs[obj_index], savename_obj, save_flo=opts.use_corresp, extract_mesh=opts.extract_mesh)
     #TODO merge the outputs
 
     end_time = time.time()

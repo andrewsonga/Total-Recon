@@ -73,6 +73,33 @@ def eikonal_loss(mlp, embed, pts_exp, bound):
     eikonal_loss = (sigmas_unit*eikonal_loss).sum() / sigmas_unit.sum()
     return eikonal_loss
 
+#############################################################
+################ modified by Chonghyuk Song #################
+# BANMo's version of new eikonal loss (applied on all sampled points along ray but bounded w.r.t. expected surface intersection as opposed to gt depth)
+def eikonal_loss2(mlp, embed, pts_exp, bound):
+    """
+    pts_exp: X* backward warped points
+    """
+    pts_exp = pts_exp.view(-1,3).detach()
+    nsample = pts_exp.shape[0]
+    device = next(mlp.parameters()).device
+    bound = torch.Tensor(bound)[None].to(device) 
+
+    inbound_idx = ((bound - pts_exp.abs()) > 0).sum(-1) == 3
+    pts = pts_exp[inbound_idx]
+    #TODO make it more efficient
+
+    pts = pts[None]
+    g,sigmas_unit = nerf_gradient(mlp, embed, pts, sigma_only=True)
+    g = g[...,0]
+    sigmas_unit = ((pts.abs() < bound.to(device)).float().sum(-1)==3).float()
+
+    # weight by occupancy
+    grad_norm =  g.norm(2, dim=-1)
+    eikonal_loss = (grad_norm - 1) ** 2
+    eikonal_loss = (sigmas_unit*eikonal_loss).sum() / sigmas_unit.sum()
+    return eikonal_loss
+
 def dense_truncated_eikonal_loss(mlp, embed, N_trunc, xyz_trunc_region, target_conf):
     """
     xyz_trunc_region:  canonical-space coordinates for 3d points densely sampled from a bounded region centered at the backprojected depth point:      shape = (N_rays, 1, N_trunc * 3)
@@ -94,7 +121,9 @@ def dense_truncated_eikonal_loss(mlp, embed, N_trunc, xyz_trunc_region, target_c
     eikonal_loss = (g.norm(2, dim=-1) - 1) ** 2                                         # shape = (1, N)
     eikonal_loss = torch.mean(eikonal_loss[target_conf >= 1.5])                            
 
-    return eikonal_loss 
+    return eikonal_loss
+#############################################################
+#############################################################
 
 def elastic_loss(mlp, embed, xyz, time_embedded):
     xyz = xyz.detach().clone()

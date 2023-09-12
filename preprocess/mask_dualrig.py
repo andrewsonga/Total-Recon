@@ -46,10 +46,11 @@ from util_flow import write_pfm
         
 ##############################################################################################################
 ########################################### modified by Chonghyuk Song #######################################
-seqname_base=sys.argv[1]        # e.g. human-dualrig000; seqname_base + "-leftcam" or "-rightcam" becomes the actually seqname that names the folder inside database where the processed data will be stored
+seqname_base=sys.argv[1]        # e.g. human1-stereo000; seqname_base + "-leftcam" or "-rightcam" becomes the actually seqname that names the folder inside database where the processed data will be stored
 ishuman=sys.argv[2]             # 'y/n'
-prefix=sys.argv[3]              # e.g. human-dualrig (i.e. seqname_base w.o. the video number)
-isdynamic=sys.argv[4]           # 'y/n' (whether or not this is a dynamic scene)
+#prefix=sys.argv[3]             # e.g. human-dualrig (i.e. seqname_base w.o. the video number)
+isdynamic=sys.argv[3]           # 'y/n' (whether or not this is a dynamic scene)
+
 # make another flag here that denotes whether or not this is a dynanmic scene or a static scene (if it's a static scene don't skip frame and just set mask to 0's everywhere)
 # we can do the same with densepose (we should do the same with densepose, otherwise it will raise an error)
 ##############################################################################################################

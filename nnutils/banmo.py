@@ -46,12 +46,16 @@ from nnutils.geom_utils import K2mat, mat2K, Kmatinv, K2inv, raycast, sample_xy,
                                 vrender_flo, get_near_far, array2tensor, rot_angle, \
                                 rtk_invert, rtk_compose, bone_transform, correct_bones,\
                                 correct_rest_pose, fid_reindex
-from nnutils.rendering import render_rays
+from nnutils.rendering_obj import render_rays
+#############################################################
+################ modified by Chonghyuk Song #################
 from nnutils.loss_utils import eikonal_loss, rtk_loss, \
                             feat_match_loss, kp_reproj_loss, grad_update_bone, \
                             loss_filter, loss_filter_line, compute_xyz_wt_loss,\
-                            compute_root_sm_2nd_loss, shape_init_loss
-from utils.io import draw_pts
+                            compute_root_sm_2nd_loss, shape_init_loss, dense_truncated_eikonal_loss, eikonal_loss2
+#############################################################
+#############################################################
+from utils.io_obj import draw_pts
 
 # distributed data parallel
 flags.DEFINE_integer('local_rank', 0, 'for distributed training')
@@ -131,12 +135,17 @@ flags.DEFINE_float('warmup_steps', 0.4, 'steps used to increase sil loss')
 flags.DEFINE_float('reinit_bone_steps', 0.667, 'steps to initialize bones')
 flags.DEFINE_float('dskin_steps', 0.8, 'steps to add delta skinning weights')
 flags.DEFINE_float('init_beta', 0.1, 'initial value for transparency beta')
+#############################################################
+################ modified by Chonghyuk Song #################
+flags.DEFINE_bool('beta_opt', True, 'whether or not to optimize beta')
+#############################################################
+#############################################################
 flags.DEFINE_bool('reset_beta', False, 'reset volsdf beta to 0.1')
-#flags.DEFINE_float('fine_steps', 0.8, 'by default, not using fine samples')                        #manual update (04/11 commit from banmo repo)
-flags.DEFINE_float('fine_steps', 1.1, 'by default, not using fine samples')                         #manual update (04/11 commit from banmo repo)
+flags.DEFINE_float('fine_steps', 1.1, 'by default, not using fine samples')
 flags.DEFINE_float('nf_reset', 0.5, 'by default, start reseting near-far plane at 50%')
 flags.DEFINE_float('bound_reset', 0.5, 'by default, start reseting bound from 50%')
 flags.DEFINE_float('bound_factor', 2, 'by default, use a loose bound')
+flags.DEFINE_float('lamb', 1.0, 'interpolation factor between previous/current object bounds and near-far planes')
 
 # optimization: initialization 
 flags.DEFINE_bool('init_ellips', False, 'whether to init shape as ellips')
@@ -174,6 +183,7 @@ flags.DEFINE_integer('chunk', 32*1024, 'chunk size to split the input to avoid O
 flags.DEFINE_integer('rnd_frame_chunk', 3, 'chunk size to render eval images')
 flags.DEFINE_bool('queryfw', True, 'use forward warping to query deformed shape')
 flags.DEFINE_float('mc_threshold', -0.002, 'marching cubes threshold')
+flags.DEFINE_bool('log_mesh', False, 'log dynamic mesh and backprojected depth points in tensorboard')
 flags.DEFINE_bool('full_mesh', False, 'extract surface without visibility check')
 flags.DEFINE_bool('ce_color', True, 'assign mesh color as canonical surface mapping or radiance')
 flags.DEFINE_integer('sample_grid3d', 64, 'resolution for mesh extraction from nerf')
@@ -197,16 +207,13 @@ flags.DEFINE_float('dep_wt', 0.5, 'weight for depth loss')
 flags.DEFINE_float('dep_scale', 0.2, 'weight for scaling gt depth')
 
 # for flags related to neural rgbd surface reconstruction
-flags.DEFINE_float('sdf_wt', 0.0, 'weight for sdf loss')
-flags.DEFINE_float('fs_wt', 0.0, 'weight for fs loss')
 flags.DEFINE_float('truncation', 0.025, 'truncation length in metric space that defines tSDF')
 #############################################################
 #############################################################
 flags.DEFINE_float('sil_wt', 0.1, 'weight for silhouette loss')
 flags.DEFINE_float('img_wt',  0.1, 'weight for image loss')
-#flags.DEFINE_float('feat_wt', 0.2, 'by default, multiple feat loss by 1')                              #manual update (04/11 commit from banmo repo)
-flags.DEFINE_float('feat_wt', 0., 'by default, multiple feat matching loss by 0')                       #manual update (04/11 commit from banmo repo)
-flags.DEFINE_float('frnd_wt', 1., 'by default, multiple feat reconstruction loss by 1.')                #manual update (04/11 commit from banmo repo)
+flags.DEFINE_float('feat_wt', 0., 'by default, multiple feat matching loss by 0')
+flags.DEFINE_float('frnd_wt', 1., 'by default, multiple feat reconstruction loss by 1.')
 flags.DEFINE_float('proj_wt', 0.02, 'by default, multiple proj loss by 1')
 flags.DEFINE_float('flow_wt', 1, 'by default, multiple flow loss by 1')
 flags.DEFINE_float('cyc_wt', 1, 'by default, multiple cyc loss by 1')
@@ -217,8 +224,11 @@ flags.DEFINE_bool('eikonal_loss', False, 'whether to use eikonal loss')
 #############################################################
 ################ modified by Chonghyuk Song #################
 flags.DEFINE_bool('dense_trunc_eikonal_loss', False, 'whether to use densely truncated eikonal loss')
-flags.DEFINE_float('dense_trunc_eikonal_wt', 0.001, 'by default, multiply eikonal loss by 1')
-flags.DEFINE_bool('eikonal_loss2', False, 'whether to use Gengshans version of new eikonal loss')
+flags.DEFINE_float('dense_trunc_eikonal_wt', 0.001, 'by default, multiply the densely truncated eikonal loss by 0.001')
+flags.DEFINE_bool('eikonal_loss_progress', False, 'whether to linearly increase the weight on the eikonal loss')
+flags.DEFINE_float('eikonal_wt_start', 0.001, 'eikonal weight at the beginning of the linear-increase schedule')
+flags.DEFINE_float('eikonal_wt_end', 0.1, 'eikonal weight at the end of the linear-increase schedule')
+flags.DEFINE_bool('eikonal_loss2', False, 'whether to use BANMos version of new eikonal loss')
 flags.DEFINE_float('eikonal_wt', 0.001, 'by default, multiply eikonal loss by 1')
 #############################################################
 #############################################################
@@ -226,13 +236,12 @@ flags.DEFINE_float('eikonal_wt', 0.001, 'by default, multiply eikonal loss by 1'
 flags.DEFINE_float('bone_loc_reg', 0.1, 'use bone location regularization')
 flags.DEFINE_bool('loss_flt', True, 'whether to use loss filter')
 flags.DEFINE_bool('rm_novp', True,'whether to remove loss on non-overlapping pxs')
-#flags.DEFINE_bool('sil_filter', True,'whether to compute losses only where sil_at_samp > 0')
 
 # for scripts/visualize/match.py
 flags.DEFINE_string('match_frames', '0 1', 'a list of frame index')
 
 class banmo(nn.Module):
-    def __init__(self, opts, data_info, obj_index):
+    def __init__(self, opts, data_info, obj_index=None):
         super(banmo, self).__init__()
         self.opts = opts
         self.device = torch.device("cuda:%d"%opts.local_rank)
@@ -268,7 +277,11 @@ class banmo(nn.Module):
         self.data_offset = data_info['offset']
         self.num_fr=self.data_offset[-1]  
         self.max_ts = (self.data_offset[1:] - self.data_offset[:-1]).max()
-        self.impath      = data_info['impath_obj{}'.format(obj_index)]
+
+        if obj_index is None:
+            self.impath = data_info['impath']
+        else:
+            self.impath = data_info['impath_obj{}'.format(obj_index)]
         self.latest_vars = {}
 
         # only used in get_near_far: rtk, idk
@@ -591,9 +604,15 @@ class banmo(nn.Module):
             rtk_np = rtk_all.clone().detach().cpu().numpy()
             valid_rts = self.latest_vars['idk'].astype(bool)
             self.latest_vars['rtk'][valid_rts,:3] = rtk_np[valid_rts]
-            self.near_far.data = get_near_far(
-                                          self.near_far.data,
-                                          self.latest_vars)
+
+            # update near-far planes via moving average with an interpolation factor of opts.lamb
+            near_far_new = get_near_far(self.near_far.data, self.latest_vars)
+            self.near_far.data = opts.lamb * self.near_far.data + (1. - opts.lamb) * near_far_new
+
+            # forgets previous near-far plane during update (opts.lamb = 0.)
+            #self.near_far.data = get_near_far(
+            #                              self.near_far.data,
+            #                              self.latest_vars)
 
         if opts.debug:
             torch.cuda.synchronize()
@@ -612,8 +631,14 @@ class banmo(nn.Module):
         aux_out={}
 
         # Render
+        #############################################################
+        ################ modified by Chonghyuk Song #################
+        #rendered, rand_inds = self.nerf_render(rtk, kaug, embedid, 
+        #        nsample=opts.nsample, ndepth=opts.ndepth)
         rendered, rand_inds = self.nerf_render(rtk, kaug, embedid, 
-                nsample=opts.nsample, ndepth=opts.ndepth)
+                nsample=opts.nsample, ndepth=opts.ndepth, nimportance=opts.nimportance)
+        #############################################################
+        #############################################################
         
         if opts.debug:
             torch.cuda.synchronize()
@@ -643,10 +668,33 @@ class banmo(nn.Module):
                     print('%d removed from sil'%(invalid_idx.sum()))
         
         img_loss_samp = opts.img_wt*rendered['img_loss_samp']
+        if opts.loss_flt:
+            img_loss_samp[invalid_idx] *= 0
         img_loss = img_loss_samp
         if opts.rm_novp:
             img_loss = img_loss * rendered['sil_coarse'].detach()
-        img_loss = img_loss[sil_at_samp[...,0]>0].mean() # eval on valid pts
+        
+        ###############################################################################################
+        ################################ modified by Chonghyuk Song ###################################
+        # single fg-obj case (pre 10/09/22)
+        #img_loss = img_loss[sil_at_samp[...,0]>0].mean() # eval on valid pts
+        
+        # multi fg-obj case (post 10/09/22)
+        '''
+        if opts.recon_bkgd:
+            # ignores 1) frames with invalid masks (sil_at_samp = 255 everywhere), 2) pixels belonging to fg object in question (sil_at_samp = 1), 3) or other fg objects (sil_at_samp = 254)
+            img_loss = img_loss[0 < sil_at_samp[...,0] < 254]
+        else:
+            # ignores 1) pixels belonging to the bkgd in frames with valid masks and 2) pixels belonging to other fg objects (but doesn't ignore pixels belonging to the bkgd IN for frames with invalid masks)
+            # BUT WHAT IF the mask is invalid because the object is entirely occluded? Do we still want to sample pixels from anywhere? or do we want to ignore all pixels?
+            img_loss = img_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] != 254)]
+        '''
+        img_loss = img_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254)]               # this implies that for fg reconstruction, we're ignoring losses for frames with invalid masks -> this will be compensated for during joint-finetuning by training on 2d features
+        img_loss = 0 if img_loss.nelement == 0 else img_loss.mean()     # eval on valid pts (if there are no valid pts, return 0)
+        #img_loss = img_loss.mean() # eval on all pts
+        ###############################################################################################
+        ###############################################################################################
+        
         sil_loss_samp = opts.sil_wt*rendered['sil_loss_samp']
         sil_loss = sil_loss_samp[vis_at_samp>0].mean()
 
@@ -659,10 +707,30 @@ class banmo(nn.Module):
         ################ modified by Chonghyuk Song #################
         # depth-supervised loss
         dep_loss_samp = rendered['dep_loss_samp']
+        if opts.loss_flt:
+            dep_loss_samp[invalid_idx] *= 0
         dep_loss = dep_loss_samp
         if opts.rm_novp:
             dep_loss = dep_loss * rendered['sil_coarse'].detach()
-        dep_loss = dep_loss[sil_at_samp[...,0]>0].mean() # eval on valid pts
+        ###############################################################################################
+        ################################ modified by Chonghyuk Song ###################################
+        # single fg-obj case (pre 10/09/22)
+        #dep_loss = dep_loss[sil_at_samp[...,0]>0].mean() # eval on valid pts
+        #dep_loss = dep_loss.mean() # eval on all pts
+
+        # multi fg-obj case (post 10/09/22)
+        '''
+        if opts.recon_bkgd:
+            # ignores 1) frames with invalid masks (sil_at_samp = 255 everywhere), 2) pixels belonging to fg object in question (sil_at_samp = 1), 3) or other fg objects (sil_at_samp = 254)
+            dep_loss = dep_loss[0 < sil_at_samp[...,0] < 254]
+        else:
+            # ignores 1) pixels belonging to the bkgd in frames with valid masks (but doesn't ignore pixels belonging to other foreground objects, nor pixels belonging to the bkgd IN for frames with invalid masks)
+            dep_loss = dep_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] != 254)]
+        '''
+        dep_loss = dep_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254)]               # this implies that for fg reconstruction, we're ignoring losses for frames with invalid masks -> this will be compensated for during joint-finetuning by training on 2d features
+        dep_loss = 0 if dep_loss.nelement == 0 else dep_loss.mean()     # eval on valid pts (if there are no valid pts, return 0)
+        ###############################################################################################
+        ###############################################################################################
         
         aux_out['dep_loss_wo_weight'] = dep_loss            # so that we can see if the depth loss decreases even without any depth supervision
         dep_loss = opts.dep_wt * dep_loss                   
@@ -672,32 +740,66 @@ class banmo(nn.Module):
         #############################################################
         #############################################################
 
+        if opts.use_embed:
+            # feat rnd loss
+            frnd_loss_samp = opts.frnd_wt*rendered['frnd_loss_samp']
+            if opts.loss_flt:
+                frnd_loss_samp[invalid_idx] *= 0
+            if opts.rm_novp:
+                frnd_loss_samp = frnd_loss_samp * rendered['sil_coarse'].detach()
+            
+            ###############################################################################################
+            ################################ modified by Chonghyuk Song ###################################
+            # single fg-obj case (pre 10/09/22)
+            #feat_rnd_loss = frnd_loss_samp[sil_at_samp[...,0]>0].mean() # eval on valid pts
+            
+            # multi fg-obj case (post 10/09/22)
+            '''
+            if opts.recon_bkgd:
+                # ignores 1) frames with invalid masks (sil_at_samp = 255 everywhere), 2) pixels belonging to fg object in question (sil_at_samp = 1), 3) or other fg objects (sil_at_samp = 254)
+                feat_rnd_loss = frnd_loss_samp[0 < sil_at_samp[...,0] < 254]
+            else:
+                # ignores 1) pixels belonging to the bkgd in frames with valid masks (but doesn't ignore pixels belonging to other foreground objects, nor pixels belonging to the bkgd IN for frames with invalid masks)
+                feat_rnd_loss = frnd_loss_samp[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] != 254)]
+            '''
+            feat_rnd_loss = frnd_loss_samp[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254)]                   # this implies that for fg reconstruction, we're ignoring losses for frames with invalid masks -> this will be compensated for during joint-finetuning by training on 2d features
+            feat_rnd_loss = 0 if feat_rnd_loss.nelement == 0 else feat_rnd_loss.mean()     # eval on valid pts (if there are no valid pts, return 0)
+            ###############################################################################################
+            ###############################################################################################
+            aux_out['feat_rnd_loss'] = feat_rnd_loss
+            total_loss = total_loss + feat_rnd_loss
+
         # flow loss
         if opts.use_corresp:
-            if opts.loss_flt:
-                # find flow window
-                dframe = (self.frameid.view(2,-1).flip(0).reshape(-1) - \
-                          self.frameid).abs()
-                didxs = dframe.log2().long()
-                for didx in range(6):
-                    subidx = didxs==didx
-                    flo_err, invalid_idx = loss_filter(self.latest_vars['flo_err'][:,didx], 
-                                                    rendered['flo_loss_samp'][subidx],
-                                                    sil_at_samp_flo[subidx], scale_factor=20)
-                    self.latest_vars['flo_err'][self.errid.long()[subidx],didx] = flo_err
-                    if self.progress > (opts.warmup_steps):
-                        #print('%d removed from flow'%(invalid_idx.sum()))
-                        flo_loss_samp_sub = rendered['flo_loss_samp'][subidx]
-                        flo_loss_samp_sub[invalid_idx] *= 0.
-                        rendered['flo_loss_samp'][subidx] = flo_loss_samp_sub
-
             flo_loss_samp = rendered['flo_loss_samp']
+            if opts.loss_flt:
+                flo_loss_samp[invalid_idx] *= 0
             if opts.rm_novp:
                 flo_loss_samp = flo_loss_samp * rendered['sil_coarse'].detach()
 
-            # eval on valid pts
-            flo_loss = flo_loss_samp[sil_at_samp_flo[...,0]].mean() * 2
+            ###############################################################################################
+            ################################ modified by Chonghyuk Song ###################################
+            # single fg-obj case (pre 10/09/22)
+            #flo_loss = flo_loss_samp[sil_at_samp_flo[...,0]].mean() * 2  # eval on valid pts
             #flo_loss = flo_loss_samp[sil_at_samp_flo[...,0]].mean()
+
+            # multi fg-obj case (post 10/09/22)
+            '''
+            if opts.recon_bkgd:
+                # ignores 1) frames with invalid masks (sil_at_samp = 255 everywhere), 2) pixels belonging to fg object in question (sil_at_samp = 1), 3) or other fg objects (sil_at_samp = 254)
+                flo_loss = flo_loss_samp[sil_at_samp_flo[...,0] & (sil_at_samp[...,0] < 254)] * 2
+            else:
+                # ignores 1) pixels belonging to the bkgd in frames with valid masks (but doesn't ignore pixels belonging to other foreground objects, nor pixels belonging to the bkgd IN for frames with invalid masks)
+                flo_loss = flo_loss_samp[sil_at_samp_flo[...,0] & (sil_at_samp[...,0] != 254)] * 2
+            '''            
+            flo_loss = flo_loss_samp[sil_at_samp_flo[...,0]] * 2                                    # this implies that for fg reconstruction, we're ignoring losses for frames with invalid masks -> this will be compensated for during joint-finetuning by training on 2d features
+            flo_loss = 0 if flo_loss.nelement == 0 else flo_loss.mean()                             # eval on valid pts (if there are no valid pts, return 0)		
+
+            # eval on all pts
+            #flo_loss = flo_loss_samp.mean() * 2
+            ###############################################################################################
+            ###############################################################################################
+            
             flo_loss = flo_loss * opts.flow_wt
     
             # warm up by only using flow loss to optimize root pose
@@ -711,26 +813,30 @@ class banmo(nn.Module):
         if opts.use_embed:
             feat_err_samp = rendered['feat_err']* opts.feat_wt
             if opts.loss_flt:
-                if opts.lineload:
-                    invalid_idx = loss_filter_line(self.latest_vars['fp_err'][:,0],
-                                               self.errid.long(),self.frameid.long(),
-                                               feat_err_samp * sil_at_samp,
-                                               opts.img_size, scale_factor=10)
-                else:
-                    # loss filter
-                    feat_err, invalid_idx = loss_filter(self.latest_vars['fp_err'][:,0], 
-                                                    feat_err_samp,
-                                                    sil_at_samp>0)
-                    self.latest_vars['fp_err'][self.errid.long(),0] = feat_err
-                if self.progress > (opts.warmup_steps):
-                    feat_err_samp[invalid_idx] *= 0.
-                    if invalid_idx.sum()>0:
-                        print('%d removed from feat'%(invalid_idx.sum()))
+                feat_err_samp[invalid_idx] *= 0
             
             feat_loss = feat_err_samp
             if opts.rm_novp:
                 feat_loss = feat_loss * rendered['sil_coarse'].detach()
-            feat_loss = feat_loss[sil_at_samp>0].mean()
+            ###############################################################################################
+            ################################ modified by Chonghyuk Song ###################################
+            # single fg-obj case (pre 10/09/22)
+            #feat_loss = feat_loss[sil_at_samp>0].mean()
+
+            # multi fg-obj case (post 10/09/22)
+            '''
+            if opts.recon_bkgd:
+                # ignores 1) frames with invalid masks (sil_at_samp = 255 everywhere), 2) pixels belonging to fg object in question (sil_at_samp = 1), or 3) other fg objects (sil_at_samp = 255)
+                feat_loss = feat_loss[0 < sil_at_samp[...,0] < 254]
+            else:
+                # ignores 1) pixels belonging to the bkgd in frames with valid masks (but doesn't ignore pixels belonging to other foreground objects, nor pixels belonging to the bkgd IN for frames with invalid masks)
+                feat_loss = feat_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] != 254)]
+            '''
+            feat_loss = feat_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254)]                 # this implies that for fg reconstruction, we're ignoring losses for frames with invalid masks -> this will be compensated for during joint-finetuning by training on 2d features
+            feat_loss = 0 if feat_loss.nelement == 0 else feat_loss.mean()      # eval on valid pts (if there are no valid pts, return 0)
+            ###############################################################################################
+            ###############################################################################################
+
             total_loss = total_loss + feat_loss
             aux_out['feat_loss'] = feat_loss
             aux_out['beta_feat'] = self.nerf_feat.beta.clone().detach()[0]
@@ -739,22 +845,27 @@ class banmo(nn.Module):
         if opts.use_proj:
             proj_err_samp = rendered['proj_err']* opts.proj_wt
             if opts.loss_flt:
-                if opts.lineload:
-                    invalid_idx = loss_filter_line(self.latest_vars['fp_err'][:,1],
-                                               self.errid.long(),self.frameid.long(),
-                                               proj_err_samp * sil_at_samp,
-                                               opts.img_size, scale_factor=10)
-                else:
-                    proj_err, invalid_idx = loss_filter(self.latest_vars['fp_err'][:,1], 
-                                                    proj_err_samp,
-                                                    sil_at_samp>0)
-                    self.latest_vars['fp_err'][self.errid.long(),1] = proj_err
-                if self.progress > (opts.warmup_steps):
-                    proj_err_samp[invalid_idx] *= 0.
-                    if invalid_idx.sum()>0:
-                        print('%d removed from proj'%(invalid_idx.sum()))
+                proj_err_samp[invalid_idx] *= 0
 
-            proj_loss = proj_err_samp[sil_at_samp>0].mean()
+            ###############################################################################################
+            ################################ modified by Chonghyuk Song ###################################
+            # single fg-obj case (pre 10/09/22)
+            #proj_loss = proj_err_samp[sil_at_samp>0].mean()
+
+            # multi fg-obj case (post 10/09/22)
+            '''
+            if opts.recon_bkgd:
+                # ignores 1) frames with invalid masks (sil_at_samp = 255 everywhere), 2) pixels belonging to fg object in question (sil_at_samp = 1), or 3) other fg objects (sil_at_samp = 254)
+                proj_loss = proj_loss[0 < sil_at_samp[...,0] < 254]
+            else:
+                # ignores 1) pixels belonging to the bkgd in frames with valid masks (but doesn't ignore pixels belonging to other foreground objects, nor pixels belonging to the bkgd IN for frames with invalid masks)
+                proj_loss = proj_loss[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] != 254)]
+            '''
+            proj_loss = proj_err_samp[(0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254)]                 # this implies that for fg reconstruction, we're ignoring losses for frames with invalid masks -> this will be compensated for during joint-finetuning by training on 2d features
+            proj_loss = 0 if proj_loss.nelement == 0 else proj_loss.mean()      # eval on valid pts (if there are no valid pts, return 0)
+            ###############################################################################################
+            ###############################################################################################
+
             aux_out['proj_loss'] = proj_loss
             if opts.freeze_proj:
                 total_loss = total_loss + proj_loss
@@ -811,6 +922,25 @@ class banmo(nn.Module):
                         rendered['pts_exp_vis'], self.latest_vars['obj_bound'])
             aux_out['ekl_loss'] = ekl_loss
             total_loss = total_loss + ekl_loss
+        
+        if opts.dense_trunc_eikonal_loss:
+            dense_trunc_ekl_loss = dense_truncated_eikonal_loss(self.nerf_coarse, embed, opts.ntrunc, rendered['xyz_trunc_region'], rendered['conf_at_samp'])
+            aux_out['dense_trunc_ekl_loss_wo_weight'] = dense_trunc_ekl_loss
+            dense_trunc_ekl_loss = opts.dense_trunc_eikonal_wt * dense_trunc_ekl_loss
+            aux_out['dense_trunc_ekl_loss'] = dense_trunc_ekl_loss
+            total_loss = total_loss + dense_trunc_ekl_loss
+        
+        if opts.eikonal_loss2:
+            if opts.eikonal_loss_progress:
+                eikonal_wt = opts.eikonal_wt_start + (opts.eikonal_wt_end - opts.eikonal_wt_start) * self.progress
+            else:
+                eikonal_wt = opts.eikonal_wt
+
+            ekl_loss = eikonal_loss2(self.nerf_coarse, embed, rendered['xyz_input'], self.latest_vars['obj_bound'])
+            aux_out['ekl_loss_wo_weight'] = ekl_loss
+            ekl_loss = eikonal_wt * ekl_loss
+            aux_out['ekl_loss'] = ekl_loss
+            total_loss = total_loss + ekl_loss
 
         # bone location regularization: pull bones away from empth space (low sdf)
         if opts.lbs and opts.bone_loc_reg>0:
@@ -850,15 +980,49 @@ class banmo(nn.Module):
         # uncertainty MLP inference
         if opts.use_unc:
             # add uncertainty MLP loss, loss = | |img-img_r|*sil - unc_pred |
+
             unc_pred = rendered['unc_pred']
-            unc_rgb = sil_at_samp[...,0]*img_loss_samp.mean(-1)
-            unc_feat= (sil_at_samp*feat_err_samp)[...,0]
-            unc_proj= (sil_at_samp*proj_err_samp)[...,0]
+            ###############################################################################
+            ########################## modified by Chonghyuk Song #########################
+            # single fg-obj case (pre 10/09/22)
+            #unc_rgb = sil_at_samp[...,0]*img_loss_samp.mean(-1)
+            #unc_dep = sil_at_samp[...,0]* dep_loss_samp.mean(-1)
+
+            # multi-obj case     (post 10/09/22)
+            unc_rgb = ((0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254))*img_loss_samp.mean(-1)
+            unc_dep = ((0 < sil_at_samp[...,0]) & (sil_at_samp[...,0] < 254))*dep_loss_samp.mean(-1)
+
+            #unc_feat= (sil_at_samp*feat_err_samp)[...,0]
+            #unc_proj= (sil_at_samp*proj_err_samp)[...,0]
+            #unc_sil = sil_loss_samp[...,0]
+
+            if opts.use_embed:
+                unc_feat= (sil_at_samp*feat_err_samp)[...,0]
+            else:
+                unc_feat = 0.
+            if opts.use_proj:
+                unc_proj= (sil_at_samp*proj_err_samp)[...,0]
+            else:
+                unc_proj = 0.
+
             unc_sil = sil_loss_samp[...,0]
+            ###############################################################################
+            ###############################################################################
             #unc_accumulated = unc_feat + unc_proj
             #unc_accumulated = unc_feat + unc_proj + unc_rgb*0.1
-            unc_accumulated = unc_feat + unc_proj + unc_rgb
-#            unc_accumulated = unc_rgb
+#            unc_accumulated = unc_feat + unc_proj + unc_rgb
+
+            #print("img_loss_samp.shape: {}".format(img_loss_samp.shape))        # (N_batch, 1, 1)
+            #print("dep_loss_samp.shape: {}".format(dep_loss_samp.shape))        # (N_batch, 1, 1)
+            #print("unc_pred.shape: {}".format(unc_pred.shape))                  # (N_batch, 1, 1)
+            #print("unc_rgb.shape: {}".format(unc_rgb.shape))                    # (N_batch, 1, 1)
+            #print("unc_dep.shape: {}".format(unc_dep.shape))                    # (N_batch, 1, 1)
+
+            if opts.use_unc_depth:
+                unc_accumulated = unc_dep
+            else:
+                unc_accumulated = unc_rgb
+            #unc_accumulated = unc_rgb + 10. * unc_dep
 #            unc_accumulated = unc_rgb + unc_sil
 
             unc_loss = (unc_accumulated.detach() - unc_pred[...,0]).pow(2)
@@ -1000,7 +1164,12 @@ class banmo(nn.Module):
 
         return total_loss, aux_out
     
-    def nerf_render(self, rtk, kaug, embedid, nsample=256, ndepth=128):
+    #############################################################
+    ################ modified by Chonghyuk Song #################    
+    #def nerf_render(self, rtk, kaug, embedid, nsample=256, ndepth=128):
+    def nerf_render(self, rtk, kaug, embedid, nsample=256, ndepth=128, nimportance=16):
+    #############################################################
+    #############################################################
         opts=self.opts
         # render rays
         if opts.debug:
@@ -1040,6 +1209,9 @@ class banmo(nn.Module):
             else:
                 self.use_fine = False
 
+            #############################################################
+            ################ modified by Chonghyuk Song #################
+            '''
             rendered_chunks = render_rays(self.nerf_models,
                         self.embeddings,
                         rays_chunk,
@@ -1054,6 +1226,25 @@ class banmo(nn.Module):
                         progress=self.progress,
                         opts=opts,
                         )
+            '''
+            rendered_chunks = render_rays(self.nerf_models,
+                        self.embeddings,
+                        rays_chunk,
+                        N_samples = ndepth,
+                        N_importance = nimportance,
+                        use_disp=False,
+                        perturb=opts.perturb,
+                        noise_std=opts.noise_std,
+                        chunk=opts.chunk, # chunk size is effective in val mode
+                        obj_bound=self.latest_vars['obj_bound'],
+                        use_fine=self.use_fine,
+                        img_size=self.img_size,
+                        progress=self.progress,
+                        opts=opts,
+                        )
+            #############################################################
+            #############################################################
+
             for k, v in rendered_chunks.items():
                 results[k] += [v]
         
@@ -1531,7 +1722,7 @@ class banmo(nn.Module):
             rays['xysn'] = xysn
 
     #def convert_line_input(self, batch):
-    def convert_line_input(self, obj_index, batch):
+    def convert_line_input(self, batch, obj_index=None):
         device = self.device
         opts = self.opts
         # convert to float
@@ -1541,8 +1732,10 @@ class banmo(nn.Module):
         bs=batch['dataid'].shape[0]
 
         self.imgs         = batch['img']         .view(bs,2,3, -1).permute(1,0,2,3).reshape(bs*2,3, -1,1).to(device)
-        #self.masks        = batch['mask']        .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
-        self.masks        = batch['mask{}'.format(obj_index)]        .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
+        if obj_index is None:
+            self.masks        = batch['mask']        .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
+        else:
+            self.masks        = batch['mask{}'.format(obj_index)]        .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
         #############################################################
         ################ modified by Chonghyuk Song #################
         self.deps         = batch['dep']         .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
@@ -1553,15 +1746,18 @@ class banmo(nn.Module):
         #self.vis2d        = batch['vis2d{}'.format(obj_index)]       .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
         self.flow         = batch['flow']        .view(bs,2,2, -1).permute(1,0,2,3).reshape(bs*2,2, -1,1).to(device)
         self.occ          = batch['occ']         .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
-        #self.dps          = batch['dp']          .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
-        self.dps          = batch['dp{}'.format(obj_index)]          .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
-        self.dp_feats     = batch['dp_feat_rsmp{}'.format(obj_index)].view(bs,2,16,-1).permute(1,0,2,3).reshape(bs*2,16,-1,1).to(device)
-        #self.dp_feats     = batch['dp_feat_rsmp'].view(bs,2,16,-1).permute(1,0,2,3).reshape(bs*2,16,-1,1).to(device)
+        if obj_index is None:
+            self.dps          = batch['dp']          .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
+            self.dp_feats     = batch['dp_feat_rsmp'].view(bs,2,16,-1).permute(1,0,2,3).reshape(bs*2,16,-1,1).to(device)
+            self.rtk          = batch['rtk']         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
+            self.kaug         = batch['kaug']        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+        else:
+            self.dps          = batch['dp{}'.format(obj_index)]          .view(bs,2,1, -1).permute(1,0,2,3).reshape(bs*2,1, -1,1).to(device)
+            self.dp_feats     = batch['dp_feat_rsmp{}'.format(obj_index)].view(bs,2,16,-1).permute(1,0,2,3).reshape(bs*2,16,-1,1).to(device)
+            self.rtk          = batch['rtk{}'.format(obj_index)]         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
+            self.kaug         = batch['kaug{}'.format(obj_index)]        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+        
         self.dp_feats     = F.normalize(self.dp_feats, 2,1)
-        #self.rtk          = batch['rtk']         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
-        #self.kaug         = batch['kaug']        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
-        self.rtk          = batch['rtk{}'.format(obj_index)]         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
-        self.kaug         = batch['kaug{}'.format(obj_index)]        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
         self.frameid      = batch['frameid']     .view(bs,-1).permute(1,0).reshape(-1).cpu()                    # shape = (bs = 512) 
         self.dataid       = batch['dataid']      .view(bs,-1).permute(1,0).reshape(-1).cpu()                    
         self.lineid       = batch['lineid']      .view(bs,-1).permute(1,0).reshape(-1).to(device)               # shape = (bs = 512) (doesn't necessarily cover from 0 to 511 exhaustively)
@@ -1571,12 +1767,6 @@ class banmo(nn.Module):
         self.frameid = self.frameid + self.data_offset[self.dataid.long()]
         self.errid = self.frameid*opts.img_size + self.lineid.cpu() # for err filter
         self.rt_raw  = self.rtk.clone()[:,:3]
-
-        ###########################################################################################
-        #################################### modified by Chonghyuk Song ###########################
-        #self.vis2d[self.frameid>300] = 0
-        ###########################################################################################
-        ###########################################################################################
 
         # process silhouette
         ###########################################################################################
@@ -1603,7 +1793,7 @@ class banmo(nn.Module):
         ###########################################################################################
 
     #def convert_batch_input(self, batch):
-    def convert_batch_input(self, obj_index, batch):
+    def convert_batch_input(self, batch, obj_index=None):
         device = self.device
         opts = self.opts
         if batch['img'].dim()==4:
@@ -1621,8 +1811,10 @@ class banmo(nn.Module):
         
         self.input_imgs   = input_img_tensor.to(device)
         self.imgs         = img_tensor.to(device)
-        #self.masks        = batch['mask']        .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
-        self.masks        = batch['mask{}'.format(obj_index)]        .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
+        if obj_index is None:
+            self.masks        = batch['mask']        .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
+        else:
+            self.masks        = batch['mask{}'.format(obj_index)]        .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
         #############################################################
         ################ modified by Chonghyuk Song #################
         self.deps         = batch['dep']         .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
@@ -1631,14 +1823,17 @@ class banmo(nn.Module):
         #############################################################
         self.vis2d        = batch['vis2d']        .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)     .to(device)
         #self.vis2d        = batch['vis2d{}'.format(obj_index)]        .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)     .to(device)
-        #self.dps          = batch['dp']          .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
-        self.dps          = batch['dp{}'.format(obj_index)]          .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
+        
         dpfd = 16
         dpfs = 112
-        #self.dp_feats     = batch['dp_feat']     .view(bs,-1,dpfd,dpfs,dpfs).permute(1,0,2,3,4).reshape(-1,dpfd,dpfs,dpfs).to(device)
-        #self.dp_bbox      = batch['dp_bbox']     .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
-        self.dp_feats     = batch['dp_feat{}'.format(obj_index)]     .view(bs,-1,dpfd,dpfs,dpfs).permute(1,0,2,3,4).reshape(-1,dpfd,dpfs,dpfs).to(device)
-        self.dp_bbox      = batch['dp_bbox{}'.format(obj_index)]     .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+        if obj_index is None:
+            self.dps          = batch['dp']          .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
+            self.dp_feats     = batch['dp_feat']     .view(bs,-1,dpfd,dpfs,dpfs).permute(1,0,2,3,4).reshape(-1,dpfd,dpfs,dpfs).to(device)
+            self.dp_bbox      = batch['dp_bbox']     .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+        else:
+            self.dps          = batch['dp{}'.format(obj_index)]          .view(bs,-1,h,w).permute(1,0,2,3).reshape(-1,h,w)      .to(device)
+            self.dp_feats     = batch['dp_feat{}'.format(obj_index)]     .view(bs,-1,dpfd,dpfs,dpfs).permute(1,0,2,3,4).reshape(-1,dpfd,dpfs,dpfs).to(device)
+            self.dp_bbox      = batch['dp_bbox{}'.format(obj_index)]     .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
         
         # for finetuning cse
         if opts.use_embed and opts.ft_cse and (not self.is_warmup_pose):
@@ -1653,10 +1848,14 @@ class banmo(nn.Module):
             else:
                 self.dp_feats = self.csenet_feats.detach()  
         self.dp_feats     = F.normalize(self.dp_feats, 2,1)
-        #self.rtk          = batch['rtk']         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
-        #self.kaug         = batch['kaug']        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
-        self.rtk          = batch['rtk{}'.format(obj_index)]         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
-        self.kaug         = batch['kaug{}'.format(obj_index)]        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+
+        if obj_index is None:
+            self.rtk          = batch['rtk']         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
+            self.kaug         = batch['kaug']        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+        else:
+            self.rtk          = batch['rtk{}'.format(obj_index)]         .view(bs,-1,4,4).permute(1,0,2,3).reshape(-1,4,4)    .to(device)
+            self.kaug         = batch['kaug{}'.format(obj_index)]        .view(bs,-1,4).permute(1,0,2).reshape(-1,4)          .to(device)
+        
         self.frameid      = batch['frameid']     .view(bs,-1).permute(1,0).reshape(-1).cpu()
         self.dataid       = batch['dataid']      .view(bs,-1).permute(1,0).reshape(-1).cpu()
       
@@ -1789,14 +1988,14 @@ class banmo(nn.Module):
         self.latest_vars['idk'][self.frameid.long()] = 1
 
     #def set_input(self, batch, load_line=False):
-    def set_input(self, obj_index, batch, load_line=False):
+    def set_input(self, batch, load_line=False, obj_index=None):
         device = self.device
         opts = self.opts
 
         if load_line:
-            self.convert_line_input(obj_index, batch)
+            self.convert_line_input(batch, obj_index=obj_index)
         else:
-            self.convert_batch_input(obj_index, batch)
+            self.convert_batch_input(batch, obj_index=obj_index)
         bs = self.imgs.shape[0]
         
         self.convert_root_pose()

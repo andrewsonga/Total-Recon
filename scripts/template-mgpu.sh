@@ -8,11 +8,11 @@ echo "using "$ngpu "gpus"
 logname=$2
 seqname=$3
 address=$4
-add_args=${*: 4:$#-1}
+add_args=${*: 5:$#-1}
 
 CUDA_VISIBLE_DEVICES=$dev python -m torch.distributed.launch\
                     --master_port $address \
-                    --nproc_per_node=$ngpu main.py \
+                    --nproc_per_node=$ngpu pretrain.py \
                     --ngpu $ngpu \
                     --seqname $seqname \
                     --logname $logname \

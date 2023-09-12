@@ -33,7 +33,7 @@ from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from utils.io import save_vid, str_to_frame, save_bones, load_root, load_sils, depth_to_image, error_to_image
 from utils.colors import label_colormap
-from nnutils.train_utils_objs import v2s_trainer_objs
+from nnutils.train_utils import v2s_trainer_objs
 from nnutils.geom_utils import obj_to_cam, pinhole_cam, obj2cam_np, tensor2array, vec_to_sim3, \
                                 raycast, sample_xy, K2inv, get_near_far, \
                                 chunk_rays
@@ -129,6 +129,7 @@ flags.DEFINE_bool('render_cam_stereoview', False, 'render the 3d asset of the ca
 flags.DEFINE_bool('render_cam_fixedview', False, 'render the 3d asset of the camera from the fixedview')
 flags.DEFINE_bool('input_view', False, 'render from the camera trajectory from the original input video')
 flags.DEFINE_bool('evaluate', True, 'computing evaluation metrics')
+flags.DEFINE_bool('render_mesh', True, 'render the reconstructed mesh of the scene')
 ####################################################################################################
 ####################################################################################################
 flags.DEFINE_integer('vidid', 0, 'video id that determines the env code')
@@ -137,7 +138,7 @@ flags.DEFINE_float('scale', 0.1,
         'scale applied to the rendered image (wrt focal length)')
 flags.DEFINE_string('rootdir', 'tmp/traj/','root body directory')
 flags.DEFINE_string('nvs_outpath', 'tmp/nvs-','output prefix')
-flags.DEFINE_bool('recon_bkgd',False,'whether or not object in question is reconstructing the background (determines self.crop_factor in BaseDataset')
+#flags.DEFINE_bool('recon_bkgd',False,'whether or not object in question is reconstructing the background (determines self.crop_factor in BaseDataset')
 ######################################## optical flow related ####################################
 flags.DEFINE_integer('maxdisp', 256, 'maxium disparity. Only affect the coarsest cost volume size')
 flags.DEFINE_integer('fac', 1, 'controls the shape of search grid. Only affect the coarse cost volume size')
@@ -1198,236 +1199,237 @@ def main(_):
         meshasset_rnd_colors = []
         meshasset_rnd_depths = []
 
-    print("RENDERING MESH")
-    mesh_rnd_colors = []
-    near_far_values = []
+    if opts.render_mesh:
+        print("RENDERING MESH")
+        mesh_rnd_colors = []
+        near_far_values = []
 
-    for i, frame_idx in enumerate(sample_idx):    
-        print("index {} / {}".format(i, len(sample_idx)))
-        r = OffscreenRenderer(img_size, img_size)
-        scene = Scene(ambient_light=0.6*np.asarray([1.,1.,1.,1.]))
-    
-        for obj_index, opts_obj in enumerate(opts_list):
-            meshdir_obj = opts_obj.rootdir                                  # "logdir/{}/obj0/".format(opts.seqname)
-            rtks_obj = torch.Tensor(rtks_objs[obj_index]).cuda()
+        for i, frame_idx in enumerate(sample_idx):    
+            print("index {} / {}".format(i, len(sample_idx)))
+            r = OffscreenRenderer(img_size, img_size)
+            scene = Scene(ambient_light=0.6*np.asarray([1.,1.,1.,1.]))
         
-            # 1. load meshes
-            meshdir_obj_time = glob.glob(meshdir_obj + "*-mesh-%05d.obj"%(frame_idx))
-            assert(len(meshdir_obj_time) == 1)
-            mesh_obj_time = trimesh.load(meshdir_obj_time[0], process=False)
-
-            mesh_obj_time.visual.vertex_colors[:, :3] = 64
-            if obj_index < len(opts_list) - 1:
-                mesh_obj_time.visual.vertex_colors[:, obj_index] = 160     # obj0 (foreground): red, # obj 1 (background): green
-
-            # 2. using rtks_objs, which represent obj2cam transformations, convert mesh vertices coords into the camera-space
-            faces_obj_time = torch.Tensor(mesh_obj_time.faces[None]).cuda()
-            verts_obj_time = torch.Tensor(mesh_obj_time.vertices[None]).cuda()
+            for obj_index, opts_obj in enumerate(opts_list):
+                meshdir_obj = opts_obj.rootdir                                  # "logdir/{}/obj0/".format(opts.seqname)
+                rtks_obj = torch.Tensor(rtks_objs[obj_index]).cuda()
             
+                # 1. load meshes
+                meshdir_obj_time = glob.glob(meshdir_obj + "*-mesh-%05d.obj"%(frame_idx))
+                assert(len(meshdir_obj_time) == 1)
+                mesh_obj_time = trimesh.load(meshdir_obj_time[0], process=False)
+
+                mesh_obj_time.visual.vertex_colors[:, :3] = 64
+                if obj_index < len(opts_list) - 1:
+                    mesh_obj_time.visual.vertex_colors[:, obj_index] = 160     # obj0 (foreground): red, # obj 1 (background): green
+
+                # 2. using rtks_objs, which represent obj2cam transformations, convert mesh vertices coords into the camera-space
+                faces_obj_time = torch.Tensor(mesh_obj_time.faces[None]).cuda()
+                verts_obj_time = torch.Tensor(mesh_obj_time.vertices[None]).cuda()
+                
+                if opts.render_cam:
+                    Rmat_obj_time = rtks_objs_rendercam_torch[obj_index][i : i+1, :3, :3]
+                    Tmat_obj_time = rtks_objs_rendercam_torch[obj_index][i : i+1, :3, 3]
+                    #Rmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, :3]
+                    #Tmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, 3]
+                else:
+                    Rmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, :3]
+                    Tmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, 3]
+
+                verts_obj_time = obj_to_cam(verts_obj_time, Rmat_obj_time, Tmat_obj_time)           # need to input Rmat of shape (1, 3, 3) and Tmat of shape (1,3), where Rmat, Tmat denote obj2cam matrices
+                mesh_obj_time = trimesh.Trimesh(vertices=np.asarray(verts_obj_time[0,:,:3].cpu()), faces=np.asarray(faces_obj_time[0].cpu()), vertex_colors=mesh_obj_time.visual.vertex_colors)
+                meshr_obj_time = Mesh.from_trimesh(mesh_obj_time, smooth=True)
+                meshr_obj_time._primitives[0].material.RoughnessFactor=1.
+
+                # 3. add the resulting mesh, where vertices are no defined in the desired camera frame to a Scene object
+                scene.add_node(Node(mesh=meshr_obj_time))
+
+            if opts.filter_3d or opts.render_cam:
+                # 1. load foreground mesh
+                meshdir_fg = opts_list[opts.asset_obj_index].rootdir                                  # "logdir/{}/obj0/".format(opts.seqname)
+                meshdir_fg_time = glob.glob(meshdir_fg + "*-mesh-%05d.obj"%(frame_idx))
+                assert(len(meshdir_fg_time) == 1)
+                mesh_fg_time = trimesh.load(meshdir_fg_time[0], process=False)
+
+                # transform vertices of 3d asset to fg frame using "asset2fg" transformation
+                asset2fg = np.eye(4)
+
+                if opts.filter_3d:
+                    # translation component = coordinate of the designated vertex in the fgframe
+                    asset2fg[:3, 3] = mesh_fg_time.vertices[opts.fg_normalbase_vertex_index, :].copy()
+
+                    # rotation component:
+                    # assume unicorn horn and camera both have OpenGL convention (where the normal / principal viewing direction points towards -ve z-axis)
+                    # extracting Z-axis direction of the 3d asset = vertex normal
+                    asset2fg[:3, 2] = -mesh_fg_time.vertex_normals[opts.fg_normalbase_vertex_index, :].copy()           # unit length normal vector: in OpenGL, z-axis is in opposite direction to OpenCV format
+
+                    # extracting X-axis = (downward vector in YZ plane = "y_prime") x Z-axis basis vector
+                    y_prime = mesh_fg_time.vertices[opts.fg_downdir_vertex_index, :] - mesh_fg_time.vertices[opts.fg_normalbase_vertex_index, :]
+                    yprime_cross_z = np.cross(y_prime, asset2fg[:3, 2])
+                    yprime_cross_z = yprime_cross_z / np.linalg.norm(yprime_cross_z)
+                    asset2fg[:3, 0] = yprime_cross_z
+
+                    # extracting Y-axis
+                    z_cross_x = np.cross(asset2fg[:3, 2], asset2fg[:3, 0])
+                    z_cross_x = z_cross_x / np.linalg.norm(z_cross_x)
+                    asset2fg[:3, 1] = -z_cross_x            # in OpenGL, y-axis is in opposite direction to OpenCV format
+                    asset2fg[:3, 3] = asset2fg[:3, 3] - opts.asset_offset_z * opts_list[-1].dep_scale * asset2fg[:3, 2]
+
+                    '''
+                    # rotation component:
+                    # extracting the Y-axis (the Y-axis denotes the principal direction of the 3d asset)
+                    # 2nd column: normal = fg_mesh.vertex_normal[chosen_vertex, :]
+                    asset2fg[:3, 1] = mesh_fg_time.vertex_normals[opts.fg_normalbase_vertex_index, :].copy()           # unit length normal vector
+
+                    # 1st column: [-R_23, 0, R_12].T where 2nd column = [R_12, R_22, R_23].T
+                    # since we just need the 1st column to perpendicular to the 2nd column
+                    asset2fg[0, 0] = -asset2fg[2, 1]
+                    asset2fg[1, 0] = 0.
+                    asset2fg[2, 0] = asset2fg[0, 1]
+
+                    # 3rd column
+                    cross_prod = np.cross(asset2fg[:3, 0], asset2fg[:3, 1])
+                    cross_prod = cross_prod / np.linalg.norm(cross_prod)
+                    asset2fg[:3, 2] = cross_prod
+                    '''
+                if opts.render_cam:
+                    # translation component = coordinate of the camera frame origin in the fgframe (novelcam2fg)                
+                    fg2novelcam_time = rtks_objs[opts.asset_obj_index][i, ...].copy()
+                    fg2novelcam_time[:, 3] = fg2novelcam_time[:, 3]
+                    fg2novelcam_time[3, :] = np.array([0, 0, 0, 1]) 
+                    novelcam2fg_time = np.linalg.inv(fg2novelcam_time)
+
+                    asset2fg[:3, 3] = novelcam2fg_time[:3, 3]     # rtks_obj represents obj2novelcam transformation
+
+                    # rotation component:
+                    # assume unicorn horn and camera both have OpenGL convention (where the normal / principal viewing direction points towards -ve z-axis)
+                    # extracting Z-axis direction of the 3d asset = vertex normal
+                    asset2fg[:3, 2] = -novelcam2fg_time[:3, 2]       # in OpenGL (which is the convention the camera asset is defined in ), y-axis is in opposite direction to OpenCV format (which is the convention rtks_obj is defined in)
+
+                    # extracting X-axis
+                    asset2fg[:3, 0] = novelcam2fg_time[:3, 0]
+
+                    # extracting Y-axis
+                    asset2fg[:3, 1] = -novelcam2fg_time[:3, 1]       # in OpenGL, y-axis is in opposite direction to OpenCV format
+                    asset2fg[:3, 3] = asset2fg[:3, 3] - opts.asset_offset_z * opts_list[-1].dep_scale * asset2fg[:3, 2]
+
+                asset_vertices_assetframe_homo = np.concatenate([mesh_asset.vertices, np.ones_like(mesh_asset.vertices[:, 0:1])], axis = -1)        # (N, 3) + (N, 1) = (N, 4)
+                asset_vertices_fgframe_homo = np.matmul(asset2fg, asset_vertices_assetframe_homo.T).T
+
+                # 4. change asset_mesh and fg_mesh from fg frame to camera frame
+                #    if opts.render_camera, then we change to the camera frame specified by rtks_objs_rendercam_torch
+                faces_asset_time = torch.Tensor(mesh_asset.faces[None]).cuda()
+                verts_asset_time = torch.Tensor(asset_vertices_fgframe_homo[:, :3][None]).cuda()
+                
+                if opts.render_cam:
+                    Rmat_obj_time = rtks_objs_rendercam_torch[opts.asset_obj_index][i : i+1, :3, :3]
+                    Tmat_obj_time = rtks_objs_rendercam_torch[opts.asset_obj_index][i : i+1, :3, 3]
+                    #Rmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, :3]
+                    #Tmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, 3]
+                else:
+                    Rmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, :3]
+                    Tmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, 3]
+
+                verts_asset_time = obj_to_cam(verts_asset_time, Rmat_obj_time, Tmat_obj_time)           # need to input Rmat of shape (1, 3, 3) and Tmat of shape (1,3), where Rmat, Tmat denote obj2cam matrices
+                try:
+                    mesh_asset_time = trimesh.Trimesh(vertices=np.asarray(verts_asset_time[0,:,:3].cpu()), faces=np.asarray(faces_asset_time[0].cpu()), vertex_colors=mesh_asset.visual.vertex_colors.vertex_colors)     #
+                except:
+                    mesh_asset_time = trimesh.Trimesh(vertices=np.asarray(verts_asset_time[0,:,:3].cpu()), faces=np.asarray(faces_asset_time[0].cpu()), vertex_colors=mesh_asset.visual.vertex_colors)
+
+                meshr_asset_time = Mesh.from_trimesh(mesh_asset_time, smooth=True)
+                #meshr_asset_time._primitives[0].material.RoughnessFactor=1.
+
+                # 5. add the resulting mesh, where vertices are now defined in the desired camera frame to a Scene object
+                scene.add_node(Node(mesh=meshr_asset_time))
+
+            # 4. add a camera node with an I_4x4 transformation (adjusted for sign conventions)
             if opts.render_cam:
-                Rmat_obj_time = rtks_objs_rendercam_torch[obj_index][i : i+1, :3, :3]
-                Tmat_obj_time = rtks_objs_rendercam_torch[obj_index][i : i+1, :3, 3]
-                #Rmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, :3]
-                #Tmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, 3]
-            else:
-                Rmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, :3]
-                Tmat_obj_time = rtks_objs_torch[obj_index][i : i+1, :3, 3]
+                focal_time = rtks_objs_rendercam_torch[-1][i, 3, :2]
+                ppoint_time = rtks_objs_rendercam_torch[-1][i, 3, 2:]
+                #focal_time = rtks_objs_torch[-1][i, 3, :2]
+                #ppoint_time = rtks_objs_torch[-1][i, 3, 2:]
+            else: 
+                focal_time = rtks_objs_torch[-1][i, 3, :2]
+                ppoint_time = rtks_objs_torch[-1][i, 3, 2:]
+            cam_time = IntrinsicsCamera(
+                focal_time[0],
+                focal_time[1],
+                ppoint_time[0],
+                ppoint_time[1],
+                znear=1e-3,zfar=1000)
+            cam_pose = -np.eye(4); cam_pose[0,0]=1; cam_pose[-1,-1]=1
+            cam_node = scene.add(cam_time, pose=cam_pose)
 
-            verts_obj_time = obj_to_cam(verts_obj_time, Rmat_obj_time, Tmat_obj_time)           # need to input Rmat of shape (1, 3, 3) and Tmat of shape (1,3), where Rmat, Tmat denote obj2cam matrices
-            mesh_obj_time = trimesh.Trimesh(vertices=np.asarray(verts_obj_time[0,:,:3].cpu()), faces=np.asarray(faces_obj_time[0].cpu()), vertex_colors=mesh_obj_time.visual.vertex_colors)
-            meshr_obj_time = Mesh.from_trimesh(mesh_obj_time, smooth=True)
-            meshr_obj_time._primitives[0].material.RoughnessFactor=1.
-
-            # 3. add the resulting mesh, where vertices are no defined in the desired camera frame to a Scene object
-            scene.add_node(Node(mesh=meshr_obj_time))
-
-        if opts.filter_3d or opts.render_cam:
-            # 1. load foreground mesh
-            meshdir_fg = opts_list[opts.asset_obj_index].rootdir                                  # "logdir/{}/obj0/".format(opts.seqname)
-            meshdir_fg_time = glob.glob(meshdir_fg + "*-mesh-%05d.obj"%(frame_idx))
-            assert(len(meshdir_fg_time) == 1)
-            mesh_fg_time = trimesh.load(meshdir_fg_time[0], process=False)
-
-            # transform vertices of 3d asset to fg frame using "asset2fg" transformation
-            asset2fg = np.eye(4)
-
-            if opts.filter_3d:
-                # translation component = coordinate of the designated vertex in the fgframe
-                asset2fg[:3, 3] = mesh_fg_time.vertices[opts.fg_normalbase_vertex_index, :].copy()
-
-                # rotation component:
-                # assume unicorn horn and camera both have OpenGL convention (where the normal / principal viewing direction points towards -ve z-axis)
-                # extracting Z-axis direction of the 3d asset = vertex normal
-                asset2fg[:3, 2] = -mesh_fg_time.vertex_normals[opts.fg_normalbase_vertex_index, :].copy()           # unit length normal vector: in OpenGL, z-axis is in opposite direction to OpenCV format
-
-                # extracting X-axis = (downward vector in YZ plane = "y_prime") x Z-axis basis vector
-                y_prime = mesh_fg_time.vertices[opts.fg_downdir_vertex_index, :] - mesh_fg_time.vertices[opts.fg_normalbase_vertex_index, :]
-                yprime_cross_z = np.cross(y_prime, asset2fg[:3, 2])
-                yprime_cross_z = yprime_cross_z / np.linalg.norm(yprime_cross_z)
-                asset2fg[:3, 0] = yprime_cross_z
-
-                # extracting Y-axis
-                z_cross_x = np.cross(asset2fg[:3, 2], asset2fg[:3, 0])
-                z_cross_x = z_cross_x / np.linalg.norm(z_cross_x)
-                asset2fg[:3, 1] = -z_cross_x            # in OpenGL, y-axis is in opposite direction to OpenCV format
-                asset2fg[:3, 3] = asset2fg[:3, 3] - opts.asset_offset_z * opts_list[-1].dep_scale * asset2fg[:3, 2]
-
-                '''
-                # rotation component:
-                # extracting the Y-axis (the Y-axis denotes the principal direction of the 3d asset)
-                # 2nd column: normal = fg_mesh.vertex_normal[chosen_vertex, :]
-                asset2fg[:3, 1] = mesh_fg_time.vertex_normals[opts.fg_normalbase_vertex_index, :].copy()           # unit length normal vector
-
-                # 1st column: [-R_23, 0, R_12].T where 2nd column = [R_12, R_22, R_23].T
-                # since we just need the 1st column to perpendicular to the 2nd column
-                asset2fg[0, 0] = -asset2fg[2, 1]
-                asset2fg[1, 0] = 0.
-                asset2fg[2, 0] = asset2fg[0, 1]
-
-                # 3rd column
-                cross_prod = np.cross(asset2fg[:3, 0], asset2fg[:3, 1])
-                cross_prod = cross_prod / np.linalg.norm(cross_prod)
-                asset2fg[:3, 2] = cross_prod
-                '''
-            if opts.render_cam:
-                # translation component = coordinate of the camera frame origin in the fgframe (novelcam2fg)                
-                fg2novelcam_time = rtks_objs[opts.asset_obj_index][i, ...].copy()
-                fg2novelcam_time[:, 3] = fg2novelcam_time[:, 3]
-                fg2novelcam_time[3, :] = np.array([0, 0, 0, 1]) 
-                novelcam2fg_time = np.linalg.inv(fg2novelcam_time)
-
-                asset2fg[:3, 3] = novelcam2fg_time[:3, 3]     # rtks_obj represents obj2novelcam transformation
-
-                # rotation component:
-                # assume unicorn horn and camera both have OpenGL convention (where the normal / principal viewing direction points towards -ve z-axis)
-                # extracting Z-axis direction of the 3d asset = vertex normal
-                asset2fg[:3, 2] = -novelcam2fg_time[:3, 2]       # in OpenGL (which is the convention the camera asset is defined in ), y-axis is in opposite direction to OpenCV format (which is the convention rtks_obj is defined in)
-
-                # extracting X-axis
-                asset2fg[:3, 0] = novelcam2fg_time[:3, 0]
-
-                # extracting Y-axis
-                asset2fg[:3, 1] = -novelcam2fg_time[:3, 1]       # in OpenGL, y-axis is in opposite direction to OpenCV format
-                asset2fg[:3, 3] = asset2fg[:3, 3] - opts.asset_offset_z * opts_list[-1].dep_scale * asset2fg[:3, 2]
-
-            asset_vertices_assetframe_homo = np.concatenate([mesh_asset.vertices, np.ones_like(mesh_asset.vertices[:, 0:1])], axis = -1)        # (N, 3) + (N, 1) = (N, 4)
-            asset_vertices_fgframe_homo = np.matmul(asset2fg, asset_vertices_assetframe_homo.T).T
-
-            # 4. change asset_mesh and fg_mesh from fg frame to camera frame
-            #    if opts.render_camera, then we change to the camera frame specified by rtks_objs_rendercam_torch
-            faces_asset_time = torch.Tensor(mesh_asset.faces[None]).cuda()
-            verts_asset_time = torch.Tensor(asset_vertices_fgframe_homo[:, :3][None]).cuda()
+            # 5. add a light source to the scene
+            birdeyelight2fg = np.eye(4)
+            birdeyelight2fg[:3, :3] = cv2.Rodrigues(np.asarray([-np.pi/2., 0., 0.]))[0]
             
-            if opts.render_cam:
-                Rmat_obj_time = rtks_objs_rendercam_torch[opts.asset_obj_index][i : i+1, :3, :3]
-                Tmat_obj_time = rtks_objs_rendercam_torch[opts.asset_obj_index][i : i+1, :3, 3]
-                #Rmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, :3]
-                #Tmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, 3]
+            birdeyelight2fg[0, 3] = opts.topdowncam_offset_x                                                # offset along the x-direction of the fgroot frame for topdown view
+            birdeyelight2fg[1, 3] = opts.topdowncam_offset_y                                                # offset along the y-direction of the fgroot frame for topdown view
+            birdeyelight2fg[2, 3] = opts.topdowncam_offset_z
+            
+            if opts.fix_frame < 0:
+                i_fixframe = opts.fix_frame
             else:
-                Rmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, :3]
-                Tmat_obj_time = rtks_objs_torch[opts.asset_obj_index][i : i+1, :3, 3]
+                i_fixframe = np.argmax(sample_idx == opts.fix_frame)
+            if opts.render_cam:
+                bkgd2cam_fixframe = np.concatenate([rtks_objs_rendercam[-1][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
+                fg2cam_fixframe = np.concatenate([rtks_objs_rendercam[opts.fg_obj_index][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
+                bkgd2cam_time = np.concatenate([rtks_objs_rendercam[-1][i, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
+            else:
+                bkgd2cam_fixframe = np.concatenate([rtks_objs[-1][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
+                fg2cam_fixframe = np.concatenate([rtks_objs[opts.fg_obj_index][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
+                bkgd2cam_time = np.concatenate([rtks_objs[-1][i, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
 
-            verts_asset_time = obj_to_cam(verts_asset_time, Rmat_obj_time, Tmat_obj_time)           # need to input Rmat of shape (1, 3, 3) and Tmat of shape (1,3), where Rmat, Tmat denote obj2cam matrices
-            try:
-                mesh_asset_time = trimesh.Trimesh(vertices=np.asarray(verts_asset_time[0,:,:3].cpu()), faces=np.asarray(faces_asset_time[0].cpu()), vertex_colors=mesh_asset.visual.vertex_colors.vertex_colors)     #
-            except:
-                mesh_asset_time = trimesh.Trimesh(vertices=np.asarray(verts_asset_time[0,:,:3].cpu()), faces=np.asarray(faces_asset_time[0].cpu()), vertex_colors=mesh_asset.visual.vertex_colors)
+            #print("opts.fix_frame: {}".format(opts.fix_frame))      # fix_frame = -1
+            #print("frame_idx: {}".format(frame_idx))
+            #print("i: {}".format(i))
 
-            meshr_asset_time = Mesh.from_trimesh(mesh_asset_time, smooth=True)
-            #meshr_asset_time._primitives[0].material.RoughnessFactor=1.
-
-            # 5. add the resulting mesh, where vertices are now defined in the desired camera frame to a Scene object
-            scene.add_node(Node(mesh=meshr_asset_time))
-
-        # 4. add a camera node with an I_4x4 transformation (adjusted for sign conventions)
-        if opts.render_cam:
-            focal_time = rtks_objs_rendercam_torch[-1][i, 3, :2]
-            ppoint_time = rtks_objs_rendercam_torch[-1][i, 3, 2:]
-            #focal_time = rtks_objs_torch[-1][i, 3, :2]
-            #ppoint_time = rtks_objs_torch[-1][i, 3, 2:]
-        else: 
-            focal_time = rtks_objs_torch[-1][i, 3, :2]
-            ppoint_time = rtks_objs_torch[-1][i, 3, 2:]
-        cam_time = IntrinsicsCamera(
-            focal_time[0],
-            focal_time[1],
-            ppoint_time[0],
-            ppoint_time[1],
-            znear=1e-3,zfar=1000)
-        cam_pose = -np.eye(4); cam_pose[0,0]=1; cam_pose[-1,-1]=1
-        cam_node = scene.add(cam_time, pose=cam_pose)
-
-        # 5. add a light source to the scene
-        birdeyelight2fg = np.eye(4)
-        birdeyelight2fg[:3, :3] = cv2.Rodrigues(np.asarray([-np.pi/2., 0., 0.]))[0]
-        
-        birdeyelight2fg[0, 3] = opts.topdowncam_offset_x                                                # offset along the x-direction of the fgroot frame for topdown view
-        birdeyelight2fg[1, 3] = opts.topdowncam_offset_y                                                # offset along the y-direction of the fgroot frame for topdown view
-        birdeyelight2fg[2, 3] = opts.topdowncam_offset_z
-        
-        if opts.fix_frame < 0:
-            i_fixframe = opts.fix_frame
-        else:
-            i_fixframe = np.argmax(sample_idx == opts.fix_frame)
-        if opts.render_cam:
-            bkgd2cam_fixframe = np.concatenate([rtks_objs_rendercam[-1][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
-            fg2cam_fixframe = np.concatenate([rtks_objs_rendercam[opts.fg_obj_index][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
-            bkgd2cam_time = np.concatenate([rtks_objs_rendercam[-1][i, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
-        else:
-            bkgd2cam_fixframe = np.concatenate([rtks_objs[-1][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
-            fg2cam_fixframe = np.concatenate([rtks_objs[opts.fg_obj_index][i_fixframe, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
-            bkgd2cam_time = np.concatenate([rtks_objs[-1][i, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0)
-
-        #print("opts.fix_frame: {}".format(opts.fix_frame))      # fix_frame = -1
-        #print("frame_idx: {}".format(frame_idx))
-        #print("i: {}".format(i))
-
-        fgfixframe2bkgd = np.matmul(np.linalg.inv(bkgd2cam_fixframe), fg2cam_fixframe)
-        birdeyelight2bkgd = np.matmul(fgfixframe2bkgd, birdeyelight2fg)
-        birdeyelight2cam = np.matmul(bkgd2cam_time, birdeyelight2bkgd)
+            fgfixframe2bkgd = np.matmul(np.linalg.inv(bkgd2cam_fixframe), fg2cam_fixframe)
+            birdeyelight2bkgd = np.matmul(fgfixframe2bkgd, birdeyelight2fg)
+            birdeyelight2cam = np.matmul(bkgd2cam_time, birdeyelight2bkgd)
 
 
-        # represents the birdeyelight pose in camera space
-        #print("birdeyelight2fg: {}".format(birdeyelight2fg))
-        #print("")
+            # represents the birdeyelight pose in camera space
+            #print("birdeyelight2fg: {}".format(birdeyelight2fg))
+            #print("")
 
-        #birdeyelight2cam = np.matmul(np.matmul(np.concatenate([rtks_objs[-1][frame_idx, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0), fgfixframe2bkgd), birdeyelight2fg)
-        
-        #theta = 9*np.pi/9
-        #init_light_pose = np.asarray([[1,0,0,0],[0,np.cos(theta),-np.sin(theta),0],[0,np.sin(theta),np.cos(theta),0],[0,0,0,1]])
-        #light_pose = init_light_pose
-        direc_l_node = scene.add(direc_l, pose=birdeyelight2cam)
+            #birdeyelight2cam = np.matmul(np.matmul(np.concatenate([rtks_objs[-1][frame_idx, :3, :], np.array([[0., 0., 0., 1.]])], axis = 0), fgfixframe2bkgd), birdeyelight2fg)
+            
+            #theta = 9*np.pi/9
+            #init_light_pose = np.asarray([[1,0,0,0],[0,np.cos(theta),-np.sin(theta),0],[0,np.sin(theta),np.cos(theta),0],[0,0,0,1]])
+            #light_pose = init_light_pose
+            direc_l_node = scene.add(direc_l, pose=birdeyelight2cam)
 
-        # 6. render Scene
-        mesh_rnd_color_time, mesh_rnd_depth_time = r.render(scene,flags=pyrender.RenderFlags.SHADOWS_DIRECTIONAL | pyrender.RenderFlags.SKIP_CULL_FACES)
-        r.delete()
-        #rndsil = (mesh_rnd_depth_time[:960,:720]>0).astype(int)*100
-        mesh_rnd_color_time = mesh_rnd_color_time[:height, :width, :3]
-        mesh_rnd_depth_time = mesh_rnd_depth_time[:height, :width]
+            # 6. render Scene
+            mesh_rnd_color_time, mesh_rnd_depth_time = r.render(scene,flags=pyrender.RenderFlags.SHADOWS_DIRECTIONAL | pyrender.RenderFlags.SKIP_CULL_FACES)
+            r.delete()
+            #rndsil = (mesh_rnd_depth_time[:960,:720]>0).astype(int)*100
+            mesh_rnd_color_time = mesh_rnd_color_time[:height, :width, :3]
+            mesh_rnd_depth_time = mesh_rnd_depth_time[:height, :width]
 
-        mesh_rnd_depth_time_pos = mesh_rnd_depth_time[mesh_rnd_depth_time > 0]
-        if len(mesh_rnd_depth_time_pos) == 0:
-            near = 100
-            far = -100
-        else:
-            near = np.min(mesh_rnd_depth_time_pos)
-            far = np.max(mesh_rnd_depth_time_pos)
-        
-        near_far = np.stack([near, far])
-        print("near - far (m): {}, {}".format(near / opts_list[-1].dep_scale, far / opts_list[-1].dep_scale))
-        near_far_values.append(near_far)
+            mesh_rnd_depth_time_pos = mesh_rnd_depth_time[mesh_rnd_depth_time > 0]
+            if len(mesh_rnd_depth_time_pos) == 0:
+                near = 100
+                far = -100
+            else:
+                near = np.min(mesh_rnd_depth_time_pos)
+                far = np.max(mesh_rnd_depth_time_pos)
+            
+            near_far = np.stack([near, far])
+            print("near - far (m): {}, {}".format(near / opts_list[-1].dep_scale, far / opts_list[-1].dep_scale))
+            near_far_values.append(near_far)
 
-        cv2.imwrite('%s-mesh_%05d.png'%(opts.nvs_outpath,frame_idx), mesh_rnd_color_time[...,::-1])
-        mesh_rnd_colors.append(mesh_rnd_color_time)
+            cv2.imwrite('%s-mesh_%05d.png'%(opts.nvs_outpath,frame_idx), mesh_rnd_color_time[...,::-1])
+            mesh_rnd_colors.append(mesh_rnd_color_time)
 
-    save_vid('%s-mesh'%(opts.nvs_outpath), mesh_rnd_colors, suffix='.mp4', upsample_frame=-1, fps=10)
-    # scale back to metric space (i.e. in meters)
-    near_far_values = np.stack(near_far_values, axis = 0) / opts_list[-1].dep_scale                       # (size, 2)
-    near_far_overallframes = [np.min(near_far_values[:, 0]), np.max(near_far_values[:, 1])]
-    near_far_overallframes = np.stack(near_far_overallframes)
-    np.save('%s-nf_perframe.npy'%(opts.nvs_outpath), near_far_values)
-    np.save('%s-nf_overallframes.npy'%(opts.nvs_outpath), near_far_overallframes)
-    print("near_far_overallframes: {}".format(near_far_overallframes))
+        save_vid('%s-mesh'%(opts.nvs_outpath), mesh_rnd_colors, suffix='.mp4', upsample_frame=-1, fps=10)
+        # scale back to metric space (i.e. in meters)
+        near_far_values = np.stack(near_far_values, axis = 0) / opts_list[-1].dep_scale                       # (size, 2)
+        near_far_overallframes = [np.min(near_far_values[:, 0]), np.max(near_far_values[:, 1])]
+        near_far_overallframes = np.stack(near_far_overallframes)
+        np.save('%s-nf_perframe.npy'%(opts.nvs_outpath), near_far_values)
+        np.save('%s-nf_overallframes.npy'%(opts.nvs_outpath), near_far_overallframes)
+        print("near_far_overallframes: {}".format(near_far_overallframes))
     
     if opts.filter_3d:
         print("RENDERING 3D ASSET")

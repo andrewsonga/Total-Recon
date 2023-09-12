@@ -153,7 +153,14 @@ class scene(nn.Module):
                 rtk_np = rtk_np_objs[obj_index]
 
                 obj.latest_vars['rtk'][valid_rts, :3] = rtk_np[valid_rts]
-                obj.near_far.data = get_near_far(obj.near_far.data, obj.latest_vars)
+                
+                # update near-far planes via moving average with an interpolation factor of opts.lamb
+                near_far_new = get_near_far(obj.near_far.data, obj.latest_vars)
+                obj.near_far.data = opts_list[obj_index].lamb * obj.near_far.data + (1. - opts_list[obj_index].lamb) * near_far_new
+
+                # forgets previous near-far plane during update (opts.lamb = 0.)
+                #obj.near_far.data = get_near_far(obj.near_far.data, obj.latest_vars)
+
 
         if opts.debug:
             torch.cuda.synchronize()
@@ -171,7 +178,7 @@ class scene(nn.Module):
             # b) scales the camera poses (rtk) stored as attributes in the object and \
             #    then computes the delta pose by calling its own nerf_root_rts
             # c) computes rtk, Kaug and save rtk, rt_raw into object.latest_vars
-            bs = obj.set_input(obj_index, batch, load_line = load_line)
+            bs = obj.set_input(batch, load_line = load_line, obj_index = obj_index)
 
         if opts.debug:
             torch.cuda.synchronize()
@@ -281,6 +288,9 @@ class scene(nn.Module):
         
         #multi-obj case                    (post 10/09/22)
         sil_at_samp_union_allobjs = functools.reduce(torch.logical_or, [(rendered['sil_at_samp_obj{}'.format(obj_index)] > 0) for obj_index in range(len(opts_list))])    
+        # (08/15/23) takes into account situations like cat1-stereo001, where there are additional fg objects in some frames, but no additional fg model to represent them - so we choose to ignore these pixels during joint-finetuning as well (hence the addition of rendered['sil_at_samp_obj{}'.format(obj_index)] < 254)
+        #sil_at_samp_union_allobjs = functools.reduce(torch.logical_or, [(torch.logical_and(rendered['sil_at_samp_obj{}'.format(obj_index)] > 0, rendered['sil_at_samp_obj{}'.format(obj_index)] < 254)) for obj_index in range(len(opts_list))])
+
         rendered['sil_at_samp_union_allobjs'] = sil_at_samp_union_allobjs
 
         img_loss = img_loss[sil_at_samp_union_allobjs[..., 0]> 0].mean()       #manual update (04/11 commit from banmo repo)    

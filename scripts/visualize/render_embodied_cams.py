@@ -33,7 +33,7 @@ from skimage.metrics import structural_similarity, peak_signal_noise_ratio
 
 from utils.io import save_vid, str_to_frame, save_bones, load_root, load_sils, depth_to_image, error_to_image
 from utils.colors import label_colormap
-from nnutils.train_utils_objs import v2s_trainer_objs
+from nnutils.train_utils import v2s_trainer_objs
 from nnutils.geom_utils import obj_to_cam, pinhole_cam, obj2cam_np, tensor2array, vec_to_sim3, \
                                 raycast, sample_xy, K2inv, get_near_far, \
                                 chunk_rays
@@ -136,7 +136,7 @@ flags.DEFINE_float('scale', 0.1,
         'scale applied to the rendered image (wrt focal length)')
 flags.DEFINE_string('rootdir', 'tmp/traj/','root body directory')
 flags.DEFINE_string('nvs_outpath', 'tmp/nvs-','output prefix')
-flags.DEFINE_bool('recon_bkgd',False,'whether or not object in question is reconstructing the background (determines self.crop_factor in BaseDataset')
+#flags.DEFINE_bool('recon_bkgd',False,'whether or not object in question is reconstructing the background (determines self.crop_factor in BaseDataset')
 ######################################## optical flow related ####################################
 flags.DEFINE_integer('maxdisp', 256, 'maxium disparity. Only affect the coarsest cost volume size')
 flags.DEFINE_integer('fac', 1, 'controls the shape of search grid. Only affect the coarse cost volume size')

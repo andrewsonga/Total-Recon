@@ -26,14 +26,14 @@ import trimesh
 from scipy.spatial.transform import Rotation as R
 import imageio
 
-from utils.io import save_vid, str_to_frame, save_bones
+from utils.io_obj import save_vid, str_to_frame, save_bones
 from utils.colors import label_colormap
-from nnutils.train_utils import v2s_trainer
+from nnutils.train_utils_obj import v2s_trainer
 from nnutils.geom_utils import obj_to_cam, tensor2array, vec_to_sim3, obj_to_cam
-from utils.io import mkdir_p
+from utils.io_obj import mkdir_p
 from ext_utils.util_flow import write_pfm
 from ext_utils.flowlib import cat_imgflo 
-from utils.io import config_to_dataloader
+from utils.io_obj import config_to_dataloader
 from torch.utils.data import DataLoader
 from nnutils.geom_utils import tensor2array
 opts = flags.FLAGS
@@ -76,6 +76,16 @@ def main(_):
     opts_dict['ngpu'] = 1
     opts_dict['preload'] = False
     opts_dict['dframe'] = [1,2,4,8,16,32]
+
+    #############################################################
+    ################ modified by Chonghyuk Song #################    
+    try:
+        opts_dict['recon_bkgd'] = opts.recon_bkgd
+        print("opts.recon_bkgd: {}".format(opts.recon_bkgd))
+    except:
+        print("the --recon_bkgd flag hasn't been specified")
+    #############################################################
+    #############################################################
 
     dataset = config_to_dataloader(opts_dict,is_eval=True)
     #dataset = config_to_dataloader(opts_dict,is_eval=False)
