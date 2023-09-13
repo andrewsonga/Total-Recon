@@ -10,9 +10,9 @@ eikonal_wt=0.001
 
 # pretrain foreground actor
 seqname=$prefix-leftcam
-bash scripts/template-fg.sh $gpus $seqname $addr $ishuman "no" $dep_wt $add_args
+bash scripts/template-fg.sh $gpus $seqname $addr "$ishuman" "no" $dep_wt $add_args
 
 # pretrain bkgd object
 # NOTE that for background pretraining: dep_wt=1
 seqname=$prefix-bkgd-leftcam
-bash scripts/template-bkgd.sh $gpus $seqname $addr $ishuman "no" 1.0 $eikonal_wt $add_args
+bash scripts/template-bkgd.sh $gpus $seqname $addr "$ishuman" "no" 1.0 $eikonal_wt $add_args

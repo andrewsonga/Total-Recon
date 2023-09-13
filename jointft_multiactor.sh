@@ -21,12 +21,3 @@ bash scripts/template-scene.sh $gpus $seqname $addr $dep_wt $sil_wt $flow_wt $en
     --loadname_objs $loadname_human --loadname_objs $loadname_animal --loadname_objs $loadname_bkgd \
     --learning_rate 0.0001 --nodense_trunc_eikonal_loss --nofreeze_root --ks_opt --nouse_ent --nouse_proj --nouse_embed \
     $add_args
-
-# from run_scripts.sh
-#./train_fgbg_ver2.sh $seqname 5.0 0.0 1.0 0.0 --loadname_objs $loadname_obj0 --loadname_objs $loadname_obj1 --loadname_objs $loadname_obj2 --use_unc --learning_rate 0.0001
-
-# from ablation_objmotion_se3_nofreezecam
-#./train_animal_fgbg_ver2.sh $seqname 5.0 0. 1.0 0.0 --loadname_objs $loadname_obj0 --loadname_objs $loadname_obj1 --loadname_objs $loadname_obj2 --learning_rate 0.0001 --nodense_trunc_eikonal_loss --nofreeze_root --ks_opt --nouse_ent --nouse_proj --nouse_embed
-
-# from ablation_freezecam
-#./train_animal_fgbg.sh $seqname 5.0 0. 1.0 0.0 --loadname_objs $loadname_obj0 --loadname_objs $loadname_obj1 --loadname_objs $loadname_obj2 --learning_rate 0.0001 --nodense_trunc_eikonal_loss --nofreeze_root --ks_opt --nouse_ent --nouse_proj --nouse_embed

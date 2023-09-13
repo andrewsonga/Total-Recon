@@ -1,4 +1,5 @@
 # Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+
 # prefix=humandog-stereo000 or humancat-stereo000
 prefix=$1
 gpu=$2
@@ -23,6 +24,7 @@ bash preprocess/preprocess_frames_dualrig_givenmaskcam.sh $prefix-animal n $isdy
 bash cp_database.sh $prefix-human-leftcam $prefix-bkgd-leftcam
 bash cp_database.sh $prefix-human-rightcam $prefix-bkgd-rightcam
 
+# NOTE: this part is only required for formatting preprocessed data, which is used for training
 # 6) generate "uncropped", "full-res" version of preprocessed data for each actor
 bash cp_database.sh $prefix-human-leftcam $prefix-human-uncropped-leftcam
 bash cp_database.sh $prefix-human-rightcam $prefix-human-uncropped-rightcam

@@ -17,8 +17,8 @@ Given a long video of deformable objects captured by a handheld RGBD sensor, Tot
 We plan to release our code in the following 4 stages:
 
 - [x] Inference and Evaluation code for 4 select sequences of our stereo RGBD dataset
-- [ ] Raw data for all sequences of our dataset
-- [ ] Training code for all sequences of our dataset
+- [x] Raw data and pre-optimized models for all sequences of our dataset
+- [x] Training code (per-object pretraining and joint-finetuning)
 - [ ] Data preprocessing code for user-provided RGBD videos
 
 ## Getting Started
@@ -50,37 +50,22 @@ apt-get install ffmpeg
 ```
 
 ### Data
-We provide raw and preprocessed data for the "human-dog", "human-cat", "human2" and "dog1 (v1)" sequences for now, but we will release the raw data for all 11 sequences of our stereo RGBD dataset very soon.
 
-(1) Download raw data and preprocessed data, and untar them.
+(1) Download and untar the raw data:
 ```
 bash download_rawdata.sh
-# the zipped preprocessed data will take up around a total of 90Gb
-bash download_preprocessed.sh
 
 # untar raw data
-tar -xzvf rawdata_forrelease.tar.gz
-
-# untar preprocess data (approrpriately rename `filename`)
-# the unzipped preprocessed data will take up around a total of 100Gb
-filename=database_humandog.tar.gz
-tar -xzvf $filename
+tar -xzvf totalrecon_rawdata.tar.gz
 ```
 
-(2) Appropriately place the downloaded data with the following scripts:
+(2) Appropriately relocate the raw data:
 ```
 # place raw data under raw/
 # argv[1]: The directory inside Total-Recon where the downloaded raw data is stored
 
-src_dir=rawdata_forrelease
+src_dir=totalrecon_rawdata
 bash place_rawdata.sh $src_dir
-
-# place preprocessed data under database/ (approrpriately rename `src_dir`)
-# argv[1]: The directory inside Total-Recon where the downloaded preprocessed data is stored
-
-src_dir=database_humandog   
-tgt_dir=database            
-bash place_preprocessed.sh $src_dir $tgt_dir
 ```
 
 (3) Download the pre-trained VCN optical flow model for data preprocessing (instructions are taken from [BANMo](https://github.com/facebookresearch/banmo/tree/main/preprocess#download-optical-flow-model)):
@@ -89,37 +74,65 @@ mkdir lasr_vcn
 wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
 ```
 
-(4) Preprocess raw data (takes around a few hours; don't run if you have already downloaded preprocessed data)
+(4) Preprocess raw data (takes around a couple of hours per sequence):
 
-Multi-foreground-object sequences (e.g. humandog):
+Multi-actor sequences (e.g. human-dog):
 ```
 # argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
+# argv[2]: gpu number (0, 1, 2, ...)
 
-bash preprocess_rawdata_multiobj.sh humandog-stereo
+prefix=humandog-stereo000; gpu=0
+
+bash preprocess_maskcamgiven_rawdata_multiactor.sh $prefix $gpu
 ```
 
-Single-foreground-object sequences (e.g. cat2):
+Uni-actor sequences (e.g. cat2):
 ```
 # argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
 # argv[2]: human or not, where `y` denotes human and  `n` denotes quadreped.
+# argv[3]: gpu number (0, 1, 2, ...)
 
-bash preprocess_rawdata_singleobj.sh cat2-stereo n
+prefix=cat2-stereo000; ishuman='n'; gpu=0
+
+bash preprocess_maskcamgiven_rawdata_uniactor.sh $prefix $ishuman $gpu
 ```
 
-### Pre-trained Models
-(1) Download the pre-trained models, and untar them.
+(5) [NOT REQUIRED FOR INFERENCE] Format preprocessed data for training:
+
+Multi-actor sequences (e.g. human-dog):
+```
+# argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
+# argv[2]: gpu number (0, 1, 2, ...)
+
+prefix=humandog-stereo000; gpu=0
+
+bash format_processeddata_multiactor.sh $prefix $gpu
+```
+
+Uni-actor sequences (e.g. cat2):
+```
+# argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
+# argv[2]: gpu number (0, 1, 2, ...)
+
+prefix=cat2-stereo000; gpu=0
+
+bash format_processeddata_uniactor.sh $prefix $gpu
+```
+
+### Pre-optimized Models
+(1) Download the pre-optimized models and untar them.
 ```
 bash download_models.sh
 
-tar -xzvf pretrained_models_forrelease.tar.gz
+tar -xzvf totalrecon_models.tar.gz
 ```
 
-(2) Appropriately place the downloaded pretrained models with the following script:
+(2) Appropriately relocate the pre-optimized models:
 ```
-# Place the pre-trained models under logdir/
-# argv[1]: The directory inside Total-Recon where the downloaded preprocessed data is stored
+# Place the pre-optimized models under logdir/
+# argv[1]: The directory inside Total-Recon where the downloaded pre-optimized models are stored
 
-src_dir=pretrained_models_forrelease
+src_dir=totalrecon_models
 bash place_models.sh $src_dir
 ```
 
@@ -128,16 +141,40 @@ To run the 3D video filter and to be able to visualize flying embodied-view came
 
 Rename the .obj file for the camera mesh to `camera.obj`, then place the file `camera.obj` and unzipped folder `UnicornHorn_OBJ` inside `mesh_material`.
 
+## Training
+
+Run per-object pretraining and joint-finetuning as follows: 
+
+```
+# change appropriately (e.g. "humancat-stereo000" or "cat2-stereo000")
+prefix=humandog-stereo000
+
+bash train_$prefix.sh
+```
+
 ## Inference
 
 ### Mesh and Root-body Pose Extraction
-Before inference or evaluation can be done, please extract the object-level meshes and root-body poses from the trained model:
+Before inference or evaluation can be done, extract the object-level meshes and root-body poses from the trained model. This only needs to be done once per model:
 ```
 # argv[1]: gpu number (0, 1, 2, ...)
 # argv[2]: folder name of the trained model inside logdir/
 
 seqname=humandog-stereo000-leftcam-jointft    # (appropriately rename `seqname`)
 bash extract_fgbg.sh $gpu $seqname
+```
+
+### Left-Right Camera Registration
+Before inference or evaluation can be done, copy the left-right camera registration data from the raw data directory to the trained model directory:
+```
+prefix=humandog-stereo000                     # (appropriately rename `prefix`)
+seqname=$prefix-leftcam-jointft               # directory name of trained model
+
+# for uniactor sequences
+cp raw/$prefix-leftcam/normrefcam2secondcam.npy logdir/$seqname/   
+
+# for multiactor sequences     
+cp raw/$prefix-human-leftcam/normrefcam2secondcam.npy logdir/$seqname/
 ```
 
 ### Egocentric View Synthesis
@@ -147,7 +184,7 @@ https://user-images.githubusercontent.com/20153928/234135753-610bc744-789e-4174-
 (takes around a few hours)
 The rendered videos will be saved as `nvs-fpsview-*.mp4` inside `logdir/$seqname/`
 ```
-bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
+bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname "$add_args"
 ```
 
 <details><summary>per-sequence arguments <code>(add_args)</code></summary>
@@ -157,7 +194,7 @@ bash scripts/render_nvs_fgbg_fps.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800 --fg_downdir_vertex_index 1874 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.50'
+add_args="--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800 --fg_downdir_vertex_index 1874 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --asset_offset_z -0.05 --scale_fps 0.50"
 ```
 
 2) Human-cat
@@ -165,23 +202,72 @@ add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 9680
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 170450 --fg_downdir_vertex_index 51716 --asset_scale 0.003 --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 0 --firstpersoncam_offsetabt_zaxis 0 --fix_frame 50 --scale_fps 0.75'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 150324 --fg_downdir_vertex_index 150506 --asset_scale 0.003 --firstpersoncam_offset_y 0.05 --firstpersoncam_offsetabt_xaxis 25 --firstpersoncam_offsetabt_yaxis 15 --firstpersoncam_offsetabt_zaxis 5 --fix_frame 50 --scale_fps 0.75"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 204713 --fg_downdir_vertex_index 204830 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_yaxis -20 --firstpersoncam_offsetabt_zaxis 10 --asset_offset_z -0.05 --scale_fps 0.75"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 34175 --fg_downdir_vertex_index 6043 --asset_scale 0.003 --firstpersoncam_offset_z 0.13 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis -20 --firstpersoncam_offsetabt_zaxis -15 --scale_fps 0.75"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 338844 --fg_downdir_vertex_index 166318 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 10 --firstpersoncam_offsetabt_yaxis 10 --asset_offset_z -0.05 --scale_fps 0.75"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 308732 --fg_downdir_vertex_index 309449 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_yaxis 20 --firstpersoncam_offsetabt_zaxis -20 --scale_fps 0.75"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 105919 --fg_downdir_vertex_index 246367 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_zaxis 10 --asset_offset_z -0.05 --scale_fps 0.75"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis 30 --firstpersoncam_offsetabt_zaxis 20 --asset_offset_z -0.05 --scale_fps 0.75'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis 30 --firstpersoncam_offsetabt_zaxis 20 --asset_offset_z -0.05 --scale_fps 0.75"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 227642 --fg_downdir_vertex_index 117789 --asset_scale 0.003 --firstpersoncam_offset_z 0.035 --firstpersoncam_offsetabt_xaxis 45 --scale_fps 0.75"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 161978 --fg_downdir_vertex_index 37496 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 10 --firstpersoncam_offsetabt_yaxis 10 --asset_offset_z -0.05 --scale_fps 0.75"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_yaxis 20 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z -0.05 --scale_fps 0.75'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --asset_scale 0.003 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_yaxis 20 --asset_offset_z -0.05 --scale_fps 0.75"
 ```
 
 </details>
@@ -205,7 +291,7 @@ bash scripts/render_nvs_fgbg_tps.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_fgmeshcenter_elevate_y 0 --thirdpersoncam_offset_x 0 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_zaxis 0 --asset_scale 0.003 --scale_tps 0.70'
+add_args="--fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --asset_scale 0.003 --scale_tps 0.70"
 ```
 
 2) Human-cat
@@ -213,23 +299,72 @@ add_args='--fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_fgmeshcenter_ele
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_fgmeshcenter_elevate_y 0.70 --thirdpersoncam_offset_y 0.16 --thirdpersoncam_offset_z -0.40 --asset_scale 0.003 --thirdpersoncam_offsetabt_zaxis 0 --thirdpersoncam_offsetabt_yaxis -10 --fix_frame 50 --scale_tps 0.70'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_fgmeshcenter_elevate_y 1.00 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.45 --thirdpersoncam_offsetabt_yaxis 10 --asset_scale 0.003 --fix_frame 50 --scale_tps 0.70"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--thirdpersoncam_offset_x 0.25 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.38 --thirdpersoncam_offsetabt_zaxis 20 --asset_scale 0.003 --scale_tps 0.70"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--thirdpersoncam_offset_x -0.20 --thirdpersoncam_offset_y 0.45 --thirdpersoncam_offset_z -0.50 --thirdpersoncam_offsetabt_xaxis -10 --thirdpersoncam_offsetabt_yaxis 15 --thirdpersoncam_offsetabt_zaxis -25 --asset_scale 0.003 --scale_tps 0.70"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.60 --thirdpersoncam_offsetabt_zaxis 30 --asset_scale 0.003"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--thirdpersoncam_offset_y 0.20 --thirdpersoncam_offset_z -0.60 --scale_tps 0.70"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--thirdpersoncam_offset_x 0.10 --thirdpersoncam_offset_y 0.20 --thirdpersoncam_offset_z -0.60 --thirdpersoncam_offsetabt_yaxis 17 --thirdpersoncam_offsetabt_zaxis 25 --asset_scale 0.003 --scale_tps 0.70"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--thirdpersoncam_offset_x 0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.30 --thirdpersoncam_offset_y 0.50 --thirdpersoncam_offset_z -0.75 --thirdpersoncam_offsetabt_zaxis 20 --thirdpersoncam_offsetabt_xaxis 0 --asset_scale 0.003 --scale_tps 0.70'
+add_args="--thirdpersoncam_offset_x 0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.30 --thirdpersoncam_offset_y 0.50 --thirdpersoncam_offset_z -0.75 --thirdpersoncam_offsetabt_zaxis 20 --asset_scale 0.003 --scale_tps 0.70"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--thirdpersoncam_offset_y 0.45 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_xaxis -10 --asset_scale 0.003 --scale_tps 0.70"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--thirdpersoncam_fgmeshcenter_elevate_y 0.70 --thirdpersoncam_offset_y 0.13 --thirdpersoncam_offset_z -0.17 --asset_scale 0.003 --scale_tps 0.70"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.80 --thirdpersoncam_offset_y 0.05 --thirdpersoncam_offset_z -0.40 --thirdpersoncam_offsetabt_zaxis 0 --thirdpersoncam_offsetabt_xaxis 0 --asset_scale 0.003 --scale_tps 0.70'
+add_args="--thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.80 --thirdpersoncam_offset_y 0.05 --thirdpersoncam_offset_z -0.40 --asset_scale 0.003 --scale_tps 0.70"
 ```
 
 </details>
@@ -252,7 +387,7 @@ bash scripts/render_nvs_fgbg_bev.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15'
+add_args="--fg_obj_index 0 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15"
 ```
 
 2) Human-cat
@@ -260,23 +395,72 @@ add_args='--fg_obj_index 0 --fix_frame 65 --topdowncam_offset_x 0.10 --topdownca
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --fix_frame 157 --topdowncam_offset_x 0.01 --topdowncam_offset_y 0.60 --topdowncam_offset_z 0 --topdowncam_offsetabt_zaxis 157'
+add_args="add_args="--fg_obj_index 0 --fix_frame 157 --topdowncam_offset_x 0.01 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 150"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 470 --topdowncam_offset_x 0.15 --topdowncam_offset_y 0.40 --topdowncam_offsetabt_zaxis -210 --topdowncam_offsetabt_yaxis 30"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 130 --topdowncam_offset_x -0.30 --topdowncam_offset_y 0.55 --topdowncam_offset_z -0.18 --topdowncam_offsetabt_zaxis 4 --topdowncam_offsetabt_yaxis -22 --topdowncam_offsetabt_xaxis 10"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 14 --topdowncam_offset_x 0.40 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 185 --topdowncam_offsetabt_yaxis 30"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 110 --topdowncam_offset_x -0.3 --topdowncam_offset_y 0.80 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -7"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 440 --topdowncam_offset_x 0.35 --topdowncam_offset_y 0.70 --topdowncam_offset_z 0.1 --topdowncam_offsetabt_yaxis 20 --topdowncam_offsetabt_zaxis 20"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --fix_frame 18 --topdowncam_offset_x -0.0 --topdowncam_offset_y 0.90 --topdowncam_offset_z 0.30 --topdowncam_offsetabt_zaxis 10 --topdowncam_offsetabt_yaxis 0'
+add_args="--fg_obj_index 0 --fix_frame 18 --topdowncam_offset_y 0.90 --topdowncam_offset_z 0.30 --topdowncam_offsetabt_zaxis 10"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 50 --topdowncam_offset_x 0.1 --topdowncam_offset_y 0.95 --topdowncam_offset_z 0.32 --topdowncam_offsetabt_zaxis 23"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --fix_frame 120 --topdowncam_offset_x -0.17 --topdowncam_offset_y 0.80 --topdowncam_offset_z 0.25"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --fix_frame 40 --topdowncam_offset_x -0.070 --topdowncam_offset_y 0.28 --topdowncam_offset_z -0.03 --topdowncam_offsetabt_zaxis 30 --topdowncam_offsetabt_yaxis 0'
+add_args="--fg_obj_index 0 --fix_frame 40 --topdowncam_offset_x -0.070 --topdowncam_offset_y 0.28 --topdowncam_offset_z -0.03 --topdowncam_offsetabt_zaxis 30"
 ```
 
 </details>
@@ -299,7 +483,7 @@ bash scripts/render_traj.sh $gpu $seqname --render_rootbody --render_traj_bev $a
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --rootbody_obj_index 1 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15'
+add_args="--fg_obj_index 0 --rootbody_obj_index 1 --fix_frame 65 --topdowncam_offset_x 0.10 --topdowncam_offset_y 0.60 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -15"
 ```
 
 2) Human-cat
@@ -307,23 +491,72 @@ add_args='--fg_obj_index 0 --rootbody_obj_index 1 --fix_frame 65 --topdowncam_of
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 157 --topdowncam_offset_x 0.01 --topdowncam_offset_y 0.60 --topdowncam_offset_z 0 --topdowncam_offsetabt_zaxis 157'
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 157 --topdowncam_offset_x 0.01 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 150"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 470 --topdowncam_offset_x 0.15 --topdowncam_offset_y 0.40 --topdowncam_offsetabt_zaxis -210 --topdowncam_offsetabt_yaxis 30"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 130 --topdowncam_offset_x -0.30 --topdowncam_offset_y 0.55 --topdowncam_offset_z -0.18 --topdowncam_offsetabt_zaxis 4 --topdowncam_offsetabt_yaxis -22 --topdowncam_offsetabt_xaxis 10"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 14 --topdowncam_offset_x 0.40 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 185 --topdowncam_offsetabt_yaxis 30"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 110 --topdowncam_offset_x -0.3 --topdowncam_offset_y 0.80 --topdowncam_offset_z -0.05 --topdowncam_offsetabt_zaxis -7"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 440 --topdowncam_offset_x 0.35 --topdowncam_offset_y 0.70 --topdowncam_offset_z 0.1 --topdowncam_offsetabt_yaxis 20 --topdowncam_offsetabt_zaxis 20"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 18 --topdowncam_offset_x -0.0 --topdowncam_offset_y 0.90 --topdowncam_offset_z 0.30 --topdowncam_offsetabt_zaxis 10 --topdowncam_offsetabt_yaxis 0'
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 18 --topdowncam_offset_y 0.90 --topdowncam_offset_z 0.30 --topdowncam_offsetabt_zaxis 10"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 50 --topdowncam_offset_x 0.1 --topdowncam_offset_y 0.95 --topdowncam_offset_z 0.32 --topdowncam_offsetabt_zaxis 23"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fix_frame 120 --fg_obj_index 0 --rootbody_obj_index 0 --topdowncam_offset_x -0.17 --topdowncam_offset_y 0.80 --topdowncam_offset_z 0.25"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 40 --topdowncam_offset_x -0.070 --topdowncam_offset_y 0.28 --topdowncam_offset_z -0.03 --topdowncam_offsetabt_zaxis 30 --topdowncam_offsetabt_yaxis 0'
+add_args="--fg_obj_index 0 --rootbody_obj_index 0 --fix_frame 40 --topdowncam_offset_x -0.070 --topdowncam_offset_y 0.28 --topdowncam_offset_z -0.03 --topdowncam_offsetabt_zaxis 30"
 ```
 
 </details>
@@ -346,7 +579,7 @@ bash scripts/render_traj.sh $gpu $seqname --render_fpscam --render_traj_stereovi
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 0 --asset_offset_z 0'
+add_args="--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --firstpersoncam_offsetabt_xaxis 15"
 ```
 
 2) Human-cat
@@ -354,23 +587,72 @@ add_args='--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --fg_norma
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 170450 --fg_downdir_vertex_index 51716 --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 0 --firstpersoncam_offsetabt_zaxis 0 --fix_frame 50'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 150324 --fg_downdir_vertex_index 150506 --asset_scale 0.003 --firstpersoncam_offset_y 0.05 --firstpersoncam_offsetabt_xaxis 25 --firstpersoncam_offsetabt_yaxis 15 --firstpersoncam_offsetabt_zaxis 5 --fix_frame 50"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 204713 --fg_downdir_vertex_index 204830 --render_traj_stereoview --render_fpscam --firstpersoncam_offset_x -0.30 --firstpersoncam_offsetabt_yaxis -20 --firstpersoncam_offsetabt_zaxis 10"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 34175 --fg_downdir_vertex_index 6043 --firstpersoncam_offset_z 0.13 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis -20 --firstpersoncam_offsetabt_zaxis -15 --fix_frame 0 --topdowncam_offset_y 0.60"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 338844 --fg_downdir_vertex_index 166318 --firstpersoncam_offsetabt_xaxis 10 --firstpersoncam_offsetabt_yaxis 10 --fix_frame 14 --topdowncam_offset_x 0.40 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 185 --topdowncam_offsetabt_yaxis -30"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 308732 --fg_downdir_vertex_index 309449 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_yaxis 20 --firstpersoncam_offsetabt_zaxis -20 --asset_offset_z -0.05 --fix_frame 0 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_xaxis -40"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 105919 --fg_downdir_vertex_index 246367 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_yaxis 15 --asset_offset_z -0.05 --fix_frame 30"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis 30 --firstpersoncam_offsetabt_zaxis 20 --fix_frame 18 --topdowncam_offset_y 0.0 --topdowncam_offset_z 0 --topdowncam_offset_x 0 --topdowncam_offsetabt_yaxis 0 --topdowncam_offsetabt_xaxis 0'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis 30 --firstpersoncam_offsetabt_zaxis 20 --fix_frame 18"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 227642 --fg_downdir_vertex_index 117789 --firstpersoncam_offset_z 0.035 --firstpersoncam_offsetabt_xaxis 45 --asset_offset_z -0.035 --fix_frame 50 --topdowncam_offset_y 0.60"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 161978 --fg_downdir_vertex_index 37496 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_yaxis 10 --asset_offset_z -0.05"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_yaxis 0 --firstpersoncam_offsetabt_zaxis 10 --asset_offset_z -0.05 --fix_frame 0 --topdowncam_offset_y 0.1 --topdowncam_offset_z 0.2 --topdowncam_offset_x 0 --topdowncam_offsetabt_yaxis -10 --topdowncam_offsetabt_xaxis -80'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 10 --asset_offset_z -0.05 --fix_frame 0 --topdowncam_offset_y 0.1 --topdowncam_offset_z 0.2 --topdowncam_offsetabt_yaxis -10 --topdowncam_offsetabt_xaxis -80"
 ```
 
 </details>
@@ -393,7 +675,7 @@ bash scripts/render_traj.sh $gpu $seqname --render_tpscam --render_traj_stereovi
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_fgmeshcenter_elevate_y 0 --thirdpersoncam_offset_x 0 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_zaxis 0'
+add_args="--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80"
 ```
 
 2) Human-cat
@@ -401,23 +683,72 @@ add_args='--rootbody_obj_index 1 --fg_obj_index 1 --asset_obj_index 1 --thirdper
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_fgmeshcenter_elevate_y 0.70 --thirdpersoncam_offset_y 0.16 --thirdpersoncam_offset_z -0.40 --thirdpersoncam_offsetabt_zaxis 0 --thirdpersoncam_offsetabt_yaxis -10 --fix_frame 50'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_fgmeshcenter_elevate_y 1.00 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.45 --thirdpersoncam_offsetabt_yaxis 10 --fix_frame 50"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x 0.25 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.38 --thirdpersoncam_offsetabt_zaxis 20"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x -0.20 --thirdpersoncam_offset_y 0.45 --thirdpersoncam_offset_z -0.50 --thirdpersoncam_offsetabt_xaxis -10 --thirdpersoncam_offsetabt_yaxis 15 --thirdpersoncam_offsetabt_zaxis -25 --fix_frame 0 --topdowncam_offset_y 0.60"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.60 --thirdpersoncam_offsetabt_zaxis 30 --fix_frame 14 --topdowncam_offset_x 0.40 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 185 --topdowncam_offsetabt_yaxis -30"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_y 0.20 --thirdpersoncam_offset_z -0.60 --fix_frame 0 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_xaxis -40"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x 0.10 --thirdpersoncam_offset_y 0.20 --thirdpersoncam_offset_z -0.60 --thirdpersoncam_offsetabt_yaxis 17 --thirdpersoncam_offsetabt_zaxis 25 --fix_frame 30"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x 0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.30 --thirdpersoncam_offset_y 0.50 --thirdpersoncam_offset_z -0.75 --thirdpersoncam_offsetabt_zaxis 20 --thirdpersoncam_offsetabt_xaxis 0 --fix_frame 18 --topdowncam_offset_y 0.0 --topdowncam_offset_z 0 --topdowncam_offset_x 0 --topdowncam_offsetabt_yaxis 0 --topdowncam_offsetabt_xaxis 0'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x 0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.30 --thirdpersoncam_offset_y 0.50 --thirdpersoncam_offset_z -0.75 --thirdpersoncam_offsetabt_zaxis 20 --fix_frame 18"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_y 0.45 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_xaxis -10 --fix_frame 50 --topdowncam_offset_y 0.60"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_fgmeshcenter_elevate_y 0.70 --thirdpersoncam_offset_y 0.13 --thirdpersoncam_offset_z -0.17"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.80 --thirdpersoncam_offset_y 0.05 --thirdpersoncam_offset_z -0.40 --thirdpersoncam_offsetabt_zaxis 0 --thirdpersoncam_offsetabt_xaxis 0 --fix_frame 0 --topdowncam_offset_y 0.1 --topdowncam_offset_z 0.2 --topdowncam_offset_x 0 --topdowncam_offsetabt_yaxis -10 --topdowncam_offsetabt_xaxis -80'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.80 --thirdpersoncam_offset_y 0.05 --thirdpersoncam_offset_z -0.40 --fix_frame 0 --topdowncam_offset_y 0.1 --topdowncam_offset_z 0.2 --topdowncam_offsetabt_yaxis -10 --topdowncam_offsetabt_xaxis -80"
 ```
 
 </details>
@@ -440,7 +771,7 @@ bash scripts/render_embodied_cams.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --asset_offset_z -0.05 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --scale_fps 1.0 --scale_tps 1.0'
+add_args="--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800  --fg_downdir_vertex_index 1874 --asset_scale 0.003  --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --asset_offset_z -0.05 --thirdpersoncam_offset_y 0.25 --thirdpersoncam_offset_z -0.80 --scale_fps 1.0 --scale_tps 1.0"
 ```
 
 2) Human-cat
@@ -448,23 +779,72 @@ add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 9680
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 170450 --fg_downdir_vertex_index 51716 --asset_scale 0.003 --render_cam_stereoview --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 0 --firstpersoncam_offsetabt_zaxis 0 --thirdpersoncam_fgmeshcenter_elevate_y 0.70 --thirdpersoncam_offset_y 0.16 --thirdpersoncam_offset_z -0.40 --thirdpersoncam_offsetabt_zaxis 0 --scale_fps 1.0 --scale_tps 1.0'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 150324 --fg_downdir_vertex_index 150506 --asset_scale 0.003 --render_cam_stereoview --firstpersoncam_offset_y 0.05 --firstpersoncam_offsetabt_xaxis 25 --firstpersoncam_offsetabt_yaxis 15 --firstpersoncam_offsetabt_zaxis 5 --thirdpersoncam_fgmeshcenter_elevate_y 1.00 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.45 --thirdpersoncam_offsetabt_yaxis 10 --scale_fps 1.0 --scale_tps 1.0"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 204713 --fg_downdir_vertex_index 204830 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offset_x -0.30 --firstpersoncam_offsetabt_yaxis -20 --firstpersoncam_offsetabt_zaxis 10 --scale_fps 1.0 --thirdpersoncam_offset_x 0.25 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.38 --thirdpersoncam_offsetabt_zaxis 20 --scale_tps 1.0"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 34175 --fg_downdir_vertex_index 6043 --asset_scale 0.003 --render_cam_stereoview --firstpersoncam_offset_z 0.13 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis -20 --firstpersoncam_offsetabt_zaxis -15 --thirdpersoncam_offset_x -0.20 --thirdpersoncam_offset_y 0.45 --thirdpersoncam_offset_z -0.50 --thirdpersoncam_offsetabt_xaxis -10 --thirdpersoncam_offsetabt_yaxis 15 --thirdpersoncam_offsetabt_zaxis -25 --scale_fps 1.0 --scale_tps 1.0"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 338844 --fg_downdir_vertex_index 166318 --asset_scale 0.003 --render_cam_stereoview --firstpersoncam_offsetabt_xaxis 10 --firstpersoncam_offsetabt_yaxis 10 --thirdpersoncam_offset_y 0.15 --thirdpersoncam_offset_z -0.60 --thirdpersoncam_offsetabt_zaxis 30 --scale_fps 1.0 --scale_tps 1.0 --fix_frame 14 --topdowncam_offset_x 0.40 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_zaxis 185 --topdowncam_offsetabt_yaxis -30"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 308732 --fg_downdir_vertex_index 309449 --asset_scale 0.003 --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_yaxis 20 --firstpersoncam_offsetabt_zaxis -20 --asset_offset_z -0.05 --scale_fps 1.0 --thirdpersoncam_offset_y 0.20 --thirdpersoncam_offset_z -0.60 --scale_tps 1.0 --fix_frame 0 --topdowncam_offset_y 0.60 --topdowncam_offsetabt_xaxis -40"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 105919 --fg_downdir_vertex_index 246367 --asset_scale 0.003 --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 20 --firstpersoncam_offsetabt_yaxis 15 --asset_offset_z -0.05 --scale_fps 1.0 --thirdpersoncam_offset_x 0.10 --thirdpersoncam_offset_y 0.20 --thirdpersoncam_offset_z -0.60 --thirdpersoncam_offsetabt_yaxis 17 --thirdpersoncam_offsetabt_zaxis 25 --scale_tps 1.0 --fix_frame 30"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offset_z 0 --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis 30 --firstpersoncam_offsetabt_zaxis 20 --scale_fps 1.0 --thirdpersoncam_offset_x 0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.30 --thirdpersoncam_offset_y 0.50 --thirdpersoncam_offset_z -0.75 --thirdpersoncam_offsetabt_zaxis 20 --thirdpersoncam_offsetabt_xaxis 0 --scale_tps 1.0 --fix_frame 18 --topdowncam_offset_y 0.0 --topdowncam_offset_z 0 --topdowncam_offset_x 0 --topdowncam_offsetabt_yaxis 0 --topdowncam_offsetabt_xaxis 0'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offsetabt_xaxis 35 --firstpersoncam_offsetabt_yaxis 30 --firstpersoncam_offsetabt_zaxis 20 --scale_fps 1.0 --thirdpersoncam_offset_x 0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.30 --thirdpersoncam_offset_y 0.50 --thirdpersoncam_offset_z -0.75 --thirdpersoncam_offsetabt_zaxis 20 --scale_tps 1.0 --fix_frame 18"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 227642 --fg_downdir_vertex_index 117789 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offset_z 0.035 --firstpersoncam_offsetabt_xaxis 45 --asset_offset_z -0.035 --scale_fps 1.0 --thirdpersoncam_offset_y 0.45 --thirdpersoncam_offset_z -0.80 --thirdpersoncam_offsetabt_xaxis -10 --scale_tps 1.0 --fix_frame 50 --topdowncam_offset_y 0.60"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 161978 --fg_downdir_vertex_index 37496 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offsetabt_xaxis 10 --firstpersoncam_offsetabt_yaxis 10 --scale_fps 1.0 --thirdpersoncam_fgmeshcenter_elevate_y 0.70 --thirdpersoncam_offset_y 0.13 --thirdpersoncam_offset_z -0.17 --scale_tps 1.0 --fix_frame 90 --topdowncam_offsetabt_yaxis 15 --topdowncam_offsetabt_xaxis -45"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_yaxis 0 --firstpersoncam_offsetabt_zaxis 10 --asset_offset_z -0.05 --scale_fps 1.0 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.80 --thirdpersoncam_offset_y 0.05 --thirdpersoncam_offset_z -0.40 --thirdpersoncam_offsetabt_zaxis 0 --thirdpersoncam_offsetabt_xaxis 0 --scale_tps 1.0 --fix_frame 0 --topdowncam_offset_y 0.1 --topdowncam_offset_z 0.2 --topdowncam_offset_x 0 --topdowncam_offsetabt_yaxis -10 --topdowncam_offsetabt_xaxis -80'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --asset_scale 0.004 --render_cam_stereoview --firstpersoncam_offset_z 0.05 --firstpersoncam_offsetabt_xaxis 15 --firstpersoncam_offsetabt_zaxis 10 --asset_offset_z -0.05 --scale_fps 1.0 --thirdpersoncam_offset_x -0.05 --thirdpersoncam_fgmeshcenter_elevate_y 0.80 --thirdpersoncam_offset_y 0.05 --thirdpersoncam_offset_z -0.40 --scale_tps 1.0 --fix_frame 0 --topdowncam_offset_y 0.1 --topdowncam_offset_z 0.2 --topdowncam_offsetabt_yaxis -10 --topdowncam_offsetabt_xaxis -80"
 ```
 
 </details>
@@ -487,7 +867,7 @@ bash scripts/render_nvs_fgbg_3dfilter.sh $gpu $seqname $add_args
 ```
 seqname=humandog-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800 --fg_downdir_vertex_index 1874 --asset_scale 0.0006 --input_view --noevaluate'
+add_args="--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 96800 --fg_downdir_vertex_index 1874 --asset_scale 0.0006 --input_view --noevaluate"
 ```
 
 2) Human-cat
@@ -495,23 +875,72 @@ add_args='--fg_obj_index 1 --asset_obj_index 1 --fg_normalbase_vertex_index 9680
 ```
 seqname=humancat-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --input_view --asset_obj_index 0 --fg_normalbase_vertex_index 170450 --fg_downdir_vertex_index 51716 --asset_scale 0.0006 --input_view --noevaluate'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 150324 --fg_downdir_vertex_index 150506 --asset_scale 0.0006 --input_view --noevaluate"
 ```
 
-3) Dog1 (v1)
+3) Cat1 (v1)
+```
+seqname=cat1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 204713 --fg_downdir_vertex_index 204830 --asset_scale 0.0004 --asset_offsetabt_yaxis -50 --asset_offsetabt_zaxis 10 --asset_offset_x 0.10 --input_view --noevaluate"
+```
+
+4) Cat1 (v2)
+```
+seqname=cat1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 34175 --fg_downdir_vertex_index 6043 --asset_scale 0.0004 --input_view --noevaluate"
+```
+
+5) Cat2 (v1)
+```
+seqname=cat2-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 338844 --fg_downdir_vertex_index 166318 --asset_scale 0.0004 --input_view --noevaluate"
+```
+
+6) Cat2 (v2)
+```
+seqname=cat2-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 308732 --fg_downdir_vertex_index 309449 --asset_scale 0.0003 --input_view --noevaluate"
+```
+
+7) Cat3
+```
+seqname=cat3-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 105919 --fg_downdir_vertex_index 246367 --asset_scale 0.0003 --asset_offsetabt_yaxis 15 --input_view --noevaluate"
+```
+
+8) Dog1 (v1)
 
 ```
 seqname=dog1-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --input_view --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --asset_scale 0.0006 --input_view --asset_offsetabt_xaxis -25 --asset_offsetabt_yaxis 35 --noevaluate'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 159244 --fg_downdir_vertex_index 93456 --asset_scale 0.0006 --asset_offsetabt_xaxis -25 --asset_offsetabt_yaxis 35 --input_view --noevaluate"
 ```
 
-4) Human 2
+9) Dog1 (v2)
+```
+seqname=dog1-stereo001-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 227642 --fg_downdir_vertex_index 117789 --asset_scale 0.0005 --fix_frame 50 --topdowncam_offset_y 0.30 --input_view --noevaluate"
+```
+
+10) Human 1
+```
+seqname=human1-stereo000-leftcam-jointft
+
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 161978 --fg_downdir_vertex_index 37496 --asset_scale 0.0005 --asset_offsetabt_xaxis -20 --input_view --noevaluate"
+```
+
+11) Human 2
 
 ```
 seqname=human2-stereo000-leftcam-jointft
 
-add_args='--fg_obj_index 0 --input_view --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --asset_scale 0.0005 --input_view --asset_offsetabt_yaxis 10 --noevaluate'
+add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 114756 --fg_downdir_vertex_index 114499 --asset_scale 0.0005 --asset_offsetabt_yaxis 10 --input_view --noevaluate"
 ```
 
 </details>
@@ -547,11 +976,11 @@ python print_metrics.py --seqname $seqname --view inputview
 
 If you find this repository useful for your research, please cite the following work.
 ```
-@article{song2023totalrecon,
+@inproceedings{song2023totalrecon,
   title={Total-Recon: Deformable Scene Reconstruction for Embodied View Synthesis},
   author={Song, Chonghyuk and Yang, Gengshan and 
           Deng, Kangle and Zhu, Jun-Yan and Ramanan, Deva},
-  journal={arXiv},
+  booktitle={IEEE International Conference on Computer Vision (ICCV)},
   year={2023}
 }
 ```
@@ -560,4 +989,4 @@ If you find this repository useful for your research, please cite the following 
 
 ## Acknowledgements
 
-We thank Nathaniel Chodosh, Jeff Tan, George Cazenavette, and Jason Zhang for proofreading our paper and Songwei Ge for reviewing our code. We also thank Sheng-Yu Wang, Daohan (Fred) Lu, Tamaki Kojima, Krishna Wadhwani, Takuya Narihira, and Tatsuo Fujiwara as well for providing valuable feedback. This work is supported in part by the Sony Corporation, Cisco Systems, Inc., and the CMU Argo AI Center for Autonomous Vehicle Research. This codebase is heavily based on [BANMo](https://github.com/facebookresearch/banmo) and also uses evaluation code from [NSFF](https://github.com/zhengqili/Neural-Scene-Flow-Fields).
+We thank Nathaniel Chodosh, Jeff Tan, George Cazenavette, and Jason Zhang for proofreading our paper and Songwei Ge for reviewing our code. We also thank Sheng-Yu Wang, Daohan (Fred) Lu, Tamaki Kojima, Krishna Wadhwani, Takuya Narihira, and Tatsuo Fujiwara as well for providing valuable feedback. This work is supported in part by the Sony Corporation, Cisco Systems, Inc., and the CMU Argo AI Center for Autonomous Vehicle Research. Our codebase is heavily based on [BANMo](https://github.com/facebookresearch/banmo) and uses evaluation code from [NSFF](https://github.com/zhengqili/Neural-Scene-Flow-Fields). Our dataset was captured with the [Record3D](https://record3d.app) iOS app.

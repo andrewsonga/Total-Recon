@@ -1,6 +1,6 @@
 # Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
-# prefix=human1-stereo000 or dog1-stereo000
 
+# prefix=human1-stereo000 or dog1-stereo000
 prefix=$1
 ishuman=$2         # y/n
 gpu=$3
