@@ -950,7 +950,7 @@ add_args="--fg_obj_index 0 --asset_obj_index 0 --fg_normalbase_vertex_index 1147
 
 ### Stereo View Synthesis (train on left camera, evaluate on right camera)
 
-https://user-images.githubusercontent.com/20153928/234140387-abb39e13-f305-46ee-829e-118d9eaa22eb.mp4
+https://github.com/andrewsonga/Total-Recon/assets/20153928/9853a9a3-01e6-45f8-ad7c-d6c46b5d5d91
 
 (takes around a few hours)
 The rendered videos will be saved as `nvs-stereoview-*.mp4` inside `logdir/$seqname/`
@@ -989,4 +989,4 @@ If you find this repository useful for your research, please cite the following 
 
 ## Acknowledgements
 
-We thank Nathaniel Chodosh, Jeff Tan, George Cazenavette, and Jason Zhang for proofreading our paper and Songwei Ge for reviewing our code. We also thank Sheng-Yu Wang, Daohan (Fred) Lu, Tamaki Kojima, Krishna Wadhwani, Takuya Narihira, and Tatsuo Fujiwara as well for providing valuable feedback. This work is supported in part by the Sony Corporation, Cisco Systems, Inc., and the CMU Argo AI Center for Autonomous Vehicle Research. Our codebase is heavily based on [BANMo](https://github.com/facebookresearch/banmo) and uses evaluation code from [NSFF](https://github.com/zhengqili/Neural-Scene-Flow-Fields). Our dataset was captured with the [Record3D](https://record3d.app) iOS app.
+We thank Nathaniel Chodosh, Jeff Tan, George Cazenavette, and Jason Zhang for proofreading our paper and Songwei Ge for reviewing our code. We also thank Sheng-Yu Wang, Daohan (Fred) Lu, Tamaki Kojima, Krishna Wadhwani, Takuya Narihira, and Tatsuo Fujiwara as well for providing valuable feedback. This work is supported in part by the Sony Corporation, Cisco Systems, Inc., and the CMU Argo AI Center for Autonomous Vehicle Research. This codebase is heavily based on [BANMo](https://github.com/facebookresearch/banmo) and uses evaluation code from [NSFF](https://github.com/zhengqili/Neural-Scene-Flow-Fields). The dataset was captured with the [Record3D](https://record3d.app) iOS app.
