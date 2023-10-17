@@ -19,7 +19,7 @@ We plan to release our code in the following 4 stages:
 - [x] Inference and Evaluation code for 4 select sequences of our stereo RGBD dataset
 - [x] Raw data and pre-optimized models for all sequences of our dataset
 - [x] Training code (per-object pretraining and joint-finetuning)
-- [ ] Data preprocessing code for user-provided RGBD videos
+- [ ] [ETA: October 31st] Data preprocessing code for user-provided RGBD videos
 
 ## Getting Started
 
