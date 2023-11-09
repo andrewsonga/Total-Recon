@@ -4,8 +4,8 @@ prefix=dog1-stereo000
 
 # 1) pretraining object fields
 dep_wt=5.0
-ishuman="no"                # "" denotes human, "no" denotes quadreped (i.e. not-human)
-bash pretrain_uniactor.sh $prefix $dep_wt $gpus "$ishuman" $addr
+use_human="no"                # "" denotes human, "no" denotes quadreped (i.e. not-human)
+bash pretrain_stereo_uniactor.sh $prefix $dep_wt $gpus "$use_human" $addr
 
 # 2) joint finetuning
-bash jointft_uniactor.sh $prefix $dep_wt $gpus $addr
+bash jointft_stereo_uniactor.sh $prefix $dep_wt $gpus $addr

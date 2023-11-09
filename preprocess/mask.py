@@ -1,5 +1,13 @@
+# This code is built upon the BANMo repository: https://github.com/facebookresearch/banmo.
 # Copyright (c) Facebook, Inc. and its affiliates. All rights reserved.
 
+# ==========================================================================================
+#
+# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
+# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# To view a copy of the license, visit LICENSE.md.
+#
+# ==========================================================================================
 
 import cv2
 import glob
@@ -7,6 +15,8 @@ import numpy as np
 import pdb
 import os
 import shutil
+
+from cameras import read_rtks
 
 import detectron2
 from detectron2.config import get_cfg
@@ -34,33 +44,51 @@ sys.path.insert(0,'third_party/ext_utils')
 from utils.io import save_vid
 from util_flow import write_pfm
         
-
-seqname=sys.argv[1]
-ishuman=sys.argv[2] # 'y/n'
-datadir='tmp/%s/images/'%seqname
-odir='database/DAVIS/'
-imgdir= '%s/JPEGImages/Full-Resolution/%s'%(odir,seqname)
-maskdir='%s/Annotations/Full-Resolution/%s'%(odir,seqname)
-#if os.path.exists(imgdir): shutil.rmtree(imgdir)
-#if os.path.exists(maskdir): shutil.rmtree(maskdir)
-#os.mkdir(imgdir)
-#os.mkdir(maskdir)
-
+##############################################################################################################
+########################################### modified by Chonghyuk Song #######################################
+seqname=sys.argv[1]             # e.g. human1-mono000; the directory name inside $finaloutdir (e.g. database/DAVIS) where the preprocessed data will be stored 
+ishuman=sys.argv[2]             # 'y/n' (whether or not this sequence contains a human or pet)
+isdynamic=sys.argv[3]           # 'y/n' (whether or not this is a dynamic scene)
+##############################################################################################################
+##############################################################################################################
 
 cfg = get_cfg()
 point_rend.add_pointrend_config(cfg)
 cfg.merge_from_file('%s/projects/PointRend/configs/InstanceSegmentation/pointrend_rcnn_X_101_32x8d_FPN_3x_coco.yaml'%(detbase))
 cfg.MODEL.WEIGHTS ='https://dl.fbaipublicfiles.com/detectron2/PointRend/InstanceSegmentation/pointrend_rcnn_X_101_32x8d_FPN_3x_coco/28119989/model_final_ba17b9.pkl'
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST=0.9
+
+#############################################################
+################ modified by Chonghyuk Song #################                    
+cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST=0.8
+#############################################################
+#############################################################
+
 predictor = DefaultPredictor(cfg)
 
-counter=0 
-frames = []
-for i,path in enumerate(sorted(glob.glob('%s/*'%datadir))):
+datadir='tmp/%s/images/'%seqname
+odir='database/DAVIS/'
+imgdir='%s/JPEGImages/Full-Resolution/%s'%(odir,seqname)
+maskdir='%s/Annotations/Full-Resolution/%s'%(odir,seqname)
+##############################################################################################################
+########################################### modified by Chonghyuk Song #######################################
+depthdir='%s/DepthMaps/Full-Resolution/%s'%(odir,seqname)
+confdir='%s/ConfidenceMaps/Full-Resolution/%s'%(odir,seqname)
+metadatadir='tmp/%s/metadata/'%seqname                # directory of raw metadata file containing intrinsics, cam2world (poses)
+camdir='cam-files/%s'%seqname                         # e.g. seqname = human1-mono000
+##############################################################################################################
+##############################################################################################################
+
+imgs = []
+masks = []
+vises = []          # list of vis for saving images
+frames = []         # list of vis for making video
+paths = sorted(glob.glob('%s/*.jpg'%datadir))
+
+for i, path in enumerate(paths):
     print(path)
     img = cv2.imread(path)
     h,w = img.shape[:2]
-   
+
     # store at most 1080p videos
     scale = np.sqrt(1920*1080/(h*w))
     if scale<1:
@@ -76,50 +104,148 @@ for i,path in enumerate(sorted(glob.glob('%s/*'%datadir))):
     pad=100
     img_rszd = cv2.copyMakeBorder(img_rszd,pad,pad,pad,pad,cv2.BORDER_REPLICATE)
 
-    # pointrend
-    outputs = predictor(img_rszd)
-    outputs = outputs['instances'].to('cpu')
-    mask_rszd = np.zeros((h_rszd+pad*2,w_rszd+pad*2))
-    for it,ins_cls in enumerate(outputs.pred_classes):
-        print(ins_cls)
-        #if ins_cls ==15: # cat
-        #if ins_cls==0 or (ins_cls >= 14 and ins_cls <= 23):
-        if ishuman=='y':
-            if ins_cls ==0:
-                mask_rszd += np.asarray(outputs.pred_masks[it])
-        else:
-            if ins_cls >= 14 and ins_cls <= 23:
-                mask_rszd += np.asarray(outputs.pred_masks[it])
+    # for multi-agent scenes
+    # the mask for the object that is not specified by the flag "ishuman" (hence named "otherobj(ect)")
+    mask_rszd_otherobj = np.zeros((h_rszd+pad*2,w_rszd+pad*2))
 
-    nb_components, output, stats, centroids = \
-    cv2.connectedComponentsWithStats(mask_rszd.astype(np.uint8), connectivity=8)
-    if nb_components>1:
-        max_label, max_size = max([(i, stats[i, cv2.CC_STAT_AREA]) for i in range(1, nb_components)], key=lambda x: x[1])
-        mask_rszd = output == max_label
-    
-    mask_rszd = mask_rszd.astype(bool).astype(int)
-    if (mask_rszd.sum())<1000: continue
-    mask_rszd                 = mask_rszd  [pad:-pad,pad:-pad]
-    img_rszd                   = img_rszd  [pad:-pad,pad:-pad]
-    outputs.pred_masks=outputs.pred_masks[:,pad:-pad,pad:-pad]
-    outputs.pred_boxes.tensor[:,:2] -= pad
-    mask_rszd = np.concatenate([mask_rszd[:,:,np.newaxis]* 128,
-                                np.zeros((h_rszd, w_rszd, 1)),
-                                np.zeros((h_rszd, w_rszd, 1))],-1)
-    mask = cv2.resize(mask_rszd,(w,h))
+    if isdynamic=='y':
+        # dynamic scene  
 
-    cv2.imwrite('%s/%05d.jpg'%(imgdir,counter), img)
-    cv2.imwrite('%s/%05d.png'%(maskdir,counter), mask)
+        # pointrend
+        outputs = predictor(img_rszd)
+        outputs = outputs['instances'].to('cpu')
+        
+        mask_rszd = np.zeros((h_rszd+pad*2,w_rszd+pad*2))
+        
+        for it,ins_cls in enumerate(outputs.pred_classes):
+            print(ins_cls)
+            #if ins_cls ==15: # cat
+            #if ins_cls==0 or (ins_cls >= 14 and ins_cls <= 23):
+
+            if ishuman=='y':
+                if ins_cls ==0:
+                    mask_rszd += np.asarray(outputs.pred_masks[it])                 # an array of False or True, which True representing pixels with semantic label
+                
+                #############################################################
+                ################ modified by Chonghyuk Song #################
+                elif ins_cls >= 14 and ins_cls <= 23:
+                    mask_rszd_otherobj += np.asarray(outputs.pred_masks[it])        # an array of False or True, which True representing pixels with semantic label
+                #############################################################
+                #############################################################
+
+            else:
+                if ins_cls >= 14 and ins_cls <= 23:
+                    mask_rszd += np.asarray(outputs.pred_masks[it])                 # an array of False or True, which True representing pixels with semantic label
+
+                #############################################################
+                ################ modified by Chonghyuk Song #################
+                elif ins_cls ==0:
+                    mask_rszd_otherobj += np.asarray(outputs.pred_masks[it])        # an array of False or True, which True representing pixels with semantic label
+                #############################################################
+                #############################################################
+
+
+        nb_components, output, stats, centroids = \
+        cv2.connectedComponentsWithStats(mask_rszd.astype(np.uint8), connectivity=8)
+        if nb_components>1:
+            max_label, max_size = max([(i, stats[i, cv2.CC_STAT_AREA]) for i in range(1, nb_components)], key=lambda x: x[1])       # max_label = 1
+            mask_rszd = output == max_label
+
+        mask_rszd = mask_rszd.astype(bool).astype(int)
+        mask_rszd_otherobj = mask_rszd_otherobj.astype(bool).astype(float)      # mask_rszd_otherobj needs to be of type float to be processed by cv2.reszie w/o error (mask_rszd gets changed into float via np.concatenate method)
+
+        is_invalidframe = False
+
+        print("mask_rszd.sum(): {}".format(mask_rszd.sum()))
+        if (mask_rszd.sum())<1000: 
+            is_invalidframe = True
+    elif isdynamic == "n":
+        # static scene (e.g. ScanNet)
+        mask_rszd = np.zeros_like(img_rszd)[..., 0]
+        # adding this dummy entry so as to not induce a error in autogen.py and vidbase.py
+        # when calling the following line of code: mask = mask/np.sort(np.unique(mask))[1] 
+        mask_rszd[pad,pad] = 1.                               # this will later be negated via binary erosion (mask = binary_erosion(mask,iterations=2))
+        mask_rszd = mask_rszd.astype(bool).astype(int)
     
-    # vis
-    v = Visualizer(img_rszd, coco_metadata, scale=1, instance_mode=ColorMode.IMAGE_BW)
-    #outputs.remove('pred_masks')
-    vis = v.draw_instance_predictions(outputs)
-    vis = vis.get_image()
-    cv2.imwrite('%s/vis-%05d.jpg'%(maskdir,counter), vis)
+    # instead of dropping frames with imperfect or even non-existent masks
+    # we shall instead populate mask_rszd with entries of 255
+    # such frames will be fed supervision during training
+    img_rszd                   = img_rszd[pad:-pad,pad:-pad]
     
-    counter+=1
-    frames.append(vis[:,:,::-1])    
-  
-save_vid('%s/vis'%maskdir, frames, suffix='.mp4')
-save_vid('%s/vis'%maskdir, frames, suffix='.gif')
+    if is_invalidframe:
+        mask = 255 * np.ones_like(img)                                          # shape = (h, w, 3)
+        # (make sure to add a dummy entry of 1. [pad, pad]) so as not to induce an error in autogen.py and vidbase.py      
+        mask[0, 0, 0] = 1.
+    else:
+        mask_rszd                 = mask_rszd[pad:-pad,pad:-pad]
+        mask_rszd = np.concatenate([mask_rszd[:,:,np.newaxis]* 128,
+                                    np.zeros((h_rszd, w_rszd, 1)),
+                                    np.zeros((h_rszd, w_rszd, 1))],-1)          # shape = (h_rszd, w_rszd, 3)
+        mask = cv2.resize(mask_rszd,(w,h))                                      # shape = (h, w, 3)
+
+        #############################################################
+        ################ modified by Chonghyuk Song #################
+        # for multi-agent scenes
+        mask_rszd_otherobj = mask_rszd_otherobj[pad:-pad,pad:-pad]              # shape = (h_rszd, w_rszd)
+        mask_otherobj = cv2.resize(mask_rszd_otherobj, (w,h))                   # shape = (h, w)
+
+        # overlaying the "otherobj" mask onto the original mask, but only for zero-valued pixels        
+        mask[(mask_otherobj > 0) & (mask[..., 0] == 0)] = 254
+        #############################################################
+        #############################################################
+    
+    if isdynamic=='y':
+        # vis (doesn't actually be seemed to be used in the dataloader)
+        outputs.pred_masks=outputs.pred_masks[:,pad:-pad,pad:-pad]
+        outputs.pred_boxes.tensor[:,:2] -= pad
+        v = Visualizer(img_rszd, coco_metadata, scale=1, instance_mode=ColorMode.IMAGE_BW)
+        vis = v.draw_instance_predictions(outputs)
+        vis = vis.get_image()
+        vises.append(vis)
+
+    imgs.append(img)
+    masks.append(mask)
+
+imgs = np.stack(imgs, axis = 0)            # numpy array of shape (N, H, W, 3)
+masks = np.stack(masks, axis = 0)          # numpy array of shape (N, H, W, 3)
+vises = np.stack(vises, axis = 0)          # numpy array of shape (N, H, W, 3)
+world2cam_rtks = read_rtks(metadatadir, depthdir, confdir, recenter=False)                  # if recenter=False, depthdir, confdir aren't actually used inside "read_rtks"          
+
+if isdynamic=='y':
+    save_vid('%s/vis'%maskdir, vises[:,:,:,::-1], suffix='.mp4')
+    save_vid('%s/vis'%maskdir, vises[:,:,:,::-1], suffix='.gif')
+
+# saving images, masks, vis, camera poses and intrinsics 
+# and copying depth, depth-confidence maps into "odir" (e.g. database/DAVIS/...)
+for counter, (img_counter, mask_counter, vis_counter, world2cam_rtk_counter, path_counter) in enumerate(zip(imgs, masks, vises, world2cam_rtks, paths)):
+
+    # 1. save image
+    cv2.imwrite('%s/%05d.jpg'%(imgdir,counter), img_counter)      
+    
+    # 2. save mask          
+    cv2.imwrite('%s/%05d.png'%(maskdir,counter), mask_counter)              
+    
+    # 3. save vis
+    if isdynamic=='y':
+        cv2.imwrite('%s/vis-%05d.jpg'%(maskdir,counter), vis_counter)       
+    
+    # 4. save camera pose
+    world2cam_rtk_counter = world2cam_rtk_counter.tolist()          
+    print("saving camera to {}".format(os.path.join(camdir, '%s-%05d.txt'%(seqname, counter))))     # camera is saved to "$camdir/$seqname/$seqname-%05d%j.txt"
+
+    if not os.path.exists(camdir):
+        os.makedirs(camdir)
+
+    with open(os.path.join(camdir, '%s-%05d.txt'%(seqname, counter)), 'w') as f:
+        for row in world2cam_rtk_counter:
+            f.write(" ".join([str(x) for x in row]) + "\n")
+    
+    # 5. copy depth
+    depth_path_tmp = path_counter.replace(".jpg", ".depth")
+    depth_path_tmp = depth_path_tmp.replace("images", "depths")
+    os.system("cp {} {}".format(depth_path_tmp, '%s/%05d.depth'%(depthdir,counter)))
+    
+    # 6. copy conf
+    conf_path_tmp = path_counter.replace(".jpg", ".conf")
+    conf_path_tmp = conf_path_tmp.replace("images", "confs")
+    os.system("cp {} {}".format(conf_path_tmp, '%s/%05d.conf'%(confdir,counter)))

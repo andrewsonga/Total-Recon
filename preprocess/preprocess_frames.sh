@@ -3,103 +3,105 @@
 
 # ==========================================================================================
 #
-# Carnegie Mellon University’s modifications are Copyright (c) 2023, Carnegie Mellon University. All rights reserved.
-# Carnegie Mellon University’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
+# Chonghyuk Song’s modifications are Copyright (c) 2023, Chonghyuk Song. All rights reserved.
+# Chonghyuk Song’s modifications are licensed under the Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) License.
 # To view a copy of the license, visit LICENSE.md.
 #
 # ==========================================================================================
+# example run: seqname=cat1-mono000; bash preprocess/preprocess_frames.sh $seqname n y $gpu
 
-# bash preprocess/preprocess.sh Sultan .MOV no 10 
-#                             folder, file ext, human or not, fps
-# file ext can be {.MOV, .mp4, .txt}
+seqname=$1          # the subdirectory inside $finaloutdir where the preprocessed data will be saved (e.g. human1-mono000, cat1-mono000, dog1-mono000)
+ishuman=$2          # y/n
+isdynamic=$3        # y/n
+maskcamgiven=$4     # y/n: whether or not object masks are given and cameras are formatted in BANMo format (OpenCV)              (4x4 RTK: [R_3x3|T_3x1]
+#                               [fx,fy,px,py])
+gpu=$5              # index of gpu used to run this script
+
+echo GPU IS $gpu
 
 rootdir=raw/
 tmpdir=tmp/
-prefix=$1
-filedir=$rootdir/$prefix
-maskoutdir=$rootdir/output
 finaloutdir=database/DAVIS/
-ishuman=$2 # y/n
+camdir=cam-files/
 
-## rename to upper case
-#if [ "$suffix" = ".MOV" ]; then
-#  cd $filedir
-#  for file in ./*; do mv -- "$file" "${file^^}"; done
-#  cd -
-#fi
+# 1) create required dirs
+mkdir -p $rootdir
+mkdir -p $tmpdir
+mkdir -p $finaloutdir
+mkdir -p $camdir
 
-# create required dirs
-#mkdir ./tmp
-#mkdir -p database/DAVIS/
-mkdir -p raw/output
+filedir=$rootdir/$seqname                                                   # points to the raw video folder
+echo "PROCESSING $filedir"                                                  # e.g. $filedir = raw/cat1-mono000
+echo "PROCESSED DATA WILL BE SAVED UNDER $seqname"                          # e.g. $seqname = database/DAVIS/cat1-mono000
 
-#for infile in `ls -v $filedir/*$suffix`; do
-counter=0
-for infile in `ls -d $filedir/*`; do              # filedir = raw/$prefix (e.g. raw/andrew)
-  echo $infile
-  seqname=$prefix$(printf "%03d" $counter)        # prefix = sequence name
-  echo $seqname
+# 2) clear existing directories inside $finaloutdir with the same name
+rm -rf $finaloutdir/JPEGImages/Full-Resolution/$seqname  
+rm -rf $finaloutdir/Annotations/Full-Resolution/$seqname 
+rm -rf $finaloutdir/Densepose/Full-Resolution/$seqname
+rm -rf $finaloutdir/DepthMaps/Full-Resolution/$seqname
+rm -rf $finaloutdir/ConfidenceMaps/Full-Resolution/$seqname   
+mkdir -p $finaloutdir/JPEGImages/Full-Resolution/$seqname
+mkdir -p $finaloutdir/Annotations/Full-Resolution/$seqname
+mkdir -p $finaloutdir/Densepose/Full-Resolution/$seqname
+mkdir -p $finaloutdir/DepthMaps/Full-Resolution/$seqname
+mkdir -p $finaloutdir/ConfidenceMaps/Full-Resolution/$seqname
 
-  # segmentation
-  todir=$tmpdir/$seqname                          # tmpdir = tmp/
-  rm -rf $todir                                   # todir = tmp/$seqname
-  mkdir $todir
-  mkdir $todir/images/
-  mkdir $todir/masks/
-  
-  # copies the provided frames in /raw/$seqname/.../images/ into tmp/$seqname_num/images
-  cp $infile/images/* $todir/images
+if [ "$maskcamgiven" = "y" ]; then
+    # assumes the given masks are placed inside $filedir/masks
+    # and that the given cameras (in the correct format) are placed inside $filedir/camera_rtks
 
-  rm -rf $finaloutdir/JPEGImages/Full-Resolution/$seqname  
-  rm -rf $finaloutdir/Annotations/Full-Resolution/$seqname 
-  rm -rf $finaloutdir/Densepose/Full-Resolution/$seqname   
-  mkdir -p $finaloutdir/JPEGImages/Full-Resolution/$seqname
-  mkdir -p $finaloutdir/Annotations/Full-Resolution/$seqname
-  mkdir -p $finaloutdir/Densepose/Full-Resolution/$seqname
-  python preprocess/mask.py $seqname $ishuman
+    # 3) copies the provided frames in raw/givenmasks/$seqname/images/ into database/DAVIS/JPEGImages/Full-Resolution/$seqname
+    cp $filedir/images/* $finaloutdir/JPEGImages/Full-Resolution/$seqname/
+    cp $filedir/masks/* $finaloutdir/Annotations/Full-Resolution/$seqname/
+    cp $filedir/depths/* $finaloutdir/DepthMaps/Full-Resolution/$seqname/
+    cp $filedir/confs/* $finaloutdir/ConfidenceMaps/Full-Resolution/$seqname/
 
-  # copies depthMaps and confidenceMaps into database/DAVIS/ (assume the names aren't always numbered from 0 )
-  src_depth_dir=$infile/depths
-  src_conf_dir=$infile/confs
-  tgt_depth_dir=$finaloutdir/DepthMaps/Full-Resolution/$seqname
-  tgt_conf_dir=$finaloutdir/ConfidenceMaps/Full-Resolution/$seqname
+    # 4) copy the camera files in $filedir/camera_rtks into $camdir/$seqname/
+    # if $camdir/$seqname doesn't exist
+    if [ ! -f $camdir/$seqname ]; then
+        mkdir -p $camdir/$seqname
+    fi
+    cp $filedir/camera_rtks/* $camdir/$seqname/
+    echo "[STEP 1] COPYING THE PROVIDED FRAMES INSIDE $filedir INTO $finaloutdir"
+else
+    # 3) clear existing directories inside $tmpdir with the same name
+    todir=$tmpdir/$seqname                          # tmpdir = tmp/
+    rm -rf $todir                                   # todir = tmp/$seqname
+    mkdir $todir
+    mkdir $todir/images/
+    mkdir $todir/masks/
+    mkdir $todir/depths/
+    mkdir $todir/confs/
+    mkdir $todir/metadata/
 
-  mkdir -p $tgt_depth_dir
-  mkdir -p $tgt_conf_dir
+    # 4) copies the provided frames in $rootdir/$seqname/.../images/ into $tmpdir/$seqname/images
+    cp $filedir/images/* $todir/images
+    cp $filedir/depths/* $todir/depths
+    cp $filedir/confs/* $todir/confs
+    cp $filedir/metadata/* $todir/metadata
+fi
+    
+# 5) computing segmentation and formatting camera parameters (e.g. changing camera poses from OpenGL to OpenCV format)
+# sys.argv[1]: seqname (e.g. human1-mono000)
+# sys.argv[2]: ishuman = 'y/n'   (whether or not this scene contains a human or pet)
+# sys.argv[3]: isdynamic = 'y/n' (whether or not this is a dynamic scene)
+if [ "$maskcamgiven" = "n" ]; then
+    CUDA_VISIBLE_DEVICES=$gpu python preprocess/mask.py $seqname $ishuman $isdynamic
+    echo "[STEP 1] COMPUTED SEGMENTATIONS & FORMATTED CAMERA PARAMETERS FOR $seqname"
+fi
 
-  depth_counter=0
-  for depthmap in `ls $src_depth_dir/*.depth`; do
-      echo $tgt_depth_dir/$(printf "%05d.depth" $depth_counter)
-      cp $depthmap $tgt_depth_dir/$(printf "%05d.depth" $depth_counter)
-      depth_counter=$((depth_counter+1))
-  done
+# 6) computing densepose
+if [ "$isdynamic" = "y" ]; then
+    CUDA_VISIBLE_DEVICES=$gpu python preprocess/compute_dp.py $seqname $ishuman
+    echo "[STEP 2] COMPUTED DENSEPOSE for $seqname"
+else
+    echo "[STEP 2] SKIPPING DENSEPOSE"
+fi
 
-  conf_counter=0
-  for confmap in `ls $src_conf_dir/*.conf`; do
-      echo $tgt_conf_dir/$(printf "%05d.conf" $conf_counter)
-      cp $confmap $tgt_conf_dir/$(printf "%05d.conf" $conf_counter)
-      conf_counter=$((conf_counter+1))
-  done
+# 7) computing optical flow
+cd third_party/vcnplus
+CUDA_VISIBLE_DEVICES=$gpu bash compute_flow.sh $seqname
+echo "[STEP 3] COMPUTED FLOW for $seqname"
+cd -                            # moves to previous working directory
 
-  # densepose
-  python preprocess/compute_dp.py $seqname $ishuman
-
-  # flow
-  cd third_party/vcnplus
-  bash compute_flow.sh $seqname
-  cd -
-
-  ## Optionally run SfM for initial root pose
-  #bash preprocess/colmap_to_data.sh $seqname $ishuman
-
-  ## save to zips
-  #cd database/DAVIS/
-  #rm -i  $rootdir/$seqname.zip
-  #zip $rootdir/$seqname.zip -r  */Full-Resolution/$seqname/
-  #cd -
-
-  counter=$((counter+1))
-done
-
-# write config file
-python preprocess/write_config.py ${seqname::-3} $ishuman
+# 8) generate config file

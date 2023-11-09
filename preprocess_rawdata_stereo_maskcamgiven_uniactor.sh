@@ -9,13 +9,10 @@ maskcamgiven=y
 rootdir=raw
 tmpdir=tmp
 
-# 1) make tmp if it doesn't exist
-mkdir -p $tmpdir
+# 1) generate preprocessed data for the "foreground" actor
+bash preprocess/preprocess_frames_stereo.sh $prefix $ishuman $isdynamic $maskcamgiven $gpu
 
-# 2) generate preprocessed data for the "foreground" actor
-bash preprocess/preprocess_frames_dualrig_givenmaskcam.sh $prefix $ishuman $isdynamic $maskcamgiven $gpu
-
-# 3) generate preprocessed data for the "background" object
+# 2) generate preprocessed data for the "background" object
 #    by copying the contents of that of the "foreground" actor
 bash cp_database.sh $prefix-leftcam $prefix-bkgd-leftcam
 bash cp_database.sh $prefix-rightcam $prefix-bkgd-rightcam

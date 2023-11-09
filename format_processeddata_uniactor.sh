@@ -1,6 +1,9 @@
-# e.g. prefix=human1-stereo000, dog1-stereo000, cat1-stereo000
+# e.g. prefix=human1-mono000, dog1-mono000, cat1-mono000
 prefix=$1
 gpu=$2
 
-CUDA_VISIBLE_DEVICES=$gpu python preprocess/img2lines.py --seqname $prefix-leftcam --norecon_bkgd
-CUDA_VISIBLE_DEVICES=$gpu python preprocess/img2lines.py --seqname $prefix-bkgd-leftcam --recon_bkgd
+seqname=$prefix
+seqname_bkgd=$seqname-bkgd
+
+CUDA_VISIBLE_DEVICES=$gpu python preprocess/img2lines.py --seqname $seqname --norecon_bkgd
+CUDA_VISIBLE_DEVICES=$gpu python preprocess/img2lines.py --seqname $seqname_bkgd --recon_bkgd

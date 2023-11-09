@@ -83,7 +83,7 @@ Multi-actor sequences (e.g. human-dog):
 
 prefix=humandog-stereo000; gpu=0
 
-bash preprocess_maskcamgiven_rawdata_multiactor.sh $prefix $gpu
+bash preprocess_rawdata_stereo_maskcamgiven_multiactor.sh $prefix $gpu
 ```
 
 Uni-actor sequences (e.g. cat2):
@@ -94,7 +94,7 @@ Uni-actor sequences (e.g. cat2):
 
 prefix=cat2-stereo000; ishuman='n'; gpu=0
 
-bash preprocess_maskcamgiven_rawdata_uniactor.sh $prefix $ishuman $gpu
+bash preprocess_rawdata_stereo_maskcamgiven_uniactor.sh $prefix $ishuman $gpu
 ```
 
 (5) [NOT REQUIRED FOR INFERENCE] Format preprocessed data for training:
@@ -106,7 +106,7 @@ Multi-actor sequences (e.g. human-dog):
 
 prefix=humandog-stereo000; gpu=0
 
-bash format_processeddata_multiactor.sh $prefix $gpu
+bash format_processeddata_stereo_multiactor.sh $prefix $gpu
 ```
 
 Uni-actor sequences (e.g. cat2):
@@ -116,7 +116,7 @@ Uni-actor sequences (e.g. cat2):
 
 prefix=cat2-stereo000; gpu=0
 
-bash format_processeddata_uniactor.sh $prefix $gpu
+bash format_processeddata_stereo_uniactor.sh $prefix $gpu
 ```
 
 ### Pre-optimized Models
