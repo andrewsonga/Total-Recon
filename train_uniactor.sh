@@ -10,7 +10,7 @@ dep_wt=5.0                  # weight on depth loss
 add_args="--lamb 0.9"       # interpolation factor for exponentially moving average update of object bounds and near-far plane
 
 # 2) pretraining objects fields
-bash pretrain_uniactor.sh $prefix $dep_wt $gpus "$use_human" $addr
+bash scripts/pretrain_uniactor.sh $prefix $dep_wt $gpus "$use_human" $addr $add_args
 
 # 3) joint finetuning
-bash jointft_uniactor.sh $prefix $dep_wt $gpus $addr
+bash scripts/jointft_uniactor.sh $prefix $dep_wt $gpus $addr

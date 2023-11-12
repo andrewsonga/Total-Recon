@@ -9,7 +9,7 @@ dep_wt=5.0                  # weight on depth loss
 add_args="--lamb 0.9"       # interpolation factor for exponentially moving average update of object bounds and near-far plane
 
 # 2) pretraining object fields
-bash pretrain_multiactor.sh $prefix $dep_wt $gpus $addr $add_args
+bash scripts/pretrain_multiactor.sh $prefix $dep_wt $gpus $addr $add_args
 
 # 3) joint finetuning
-bash jointft_multiactor.sh $prefix $dep_wt $gpus $addr
+bash scripts/jointft_multiactor.sh $prefix $dep_wt $gpus $addr

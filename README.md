@@ -19,7 +19,7 @@ We plan to release our code in the following 4 stages:
 - [x] Inference and Evaluation code for 4 select sequences of our stereo RGBD dataset
 - [x] Raw data and pre-optimized models for all sequences of our dataset
 - [x] Training code (per-object pretraining and joint-finetuning)
-- [ ] [ETA: October 31st] Data preprocessing code for user-provided RGBD videos
+- [x] Data preprocessing code for user-provided RGBD videos
 
 ## Getting Started
 
@@ -49,7 +49,16 @@ python -m pip install detectron2 -f \
 apt-get install ffmpeg
 ```
 
+(5) Download the pre-trained VCN optical flow model for data preprocessing (instructions are taken from [BANMo](https://github.com/facebookresearch/banmo/tree/main/preprocess#download-optical-flow-model)):
+```
+mkdir lasr_vcn
+wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
+```
+
 ### Data
+
+The following steps (1) ~ (4) for downloading, preprocessing, and formatting RGBD sequences only pertains to Total-Recon's dataset. **<span style="color: orange;">To apply Total-Recon on your own RGBD videos, please follow the instructions</span>** [here](preprocess/README.md).
+
 
 (1) Download and untar the raw data:
 ```
@@ -59,64 +68,62 @@ bash download_rawdata.sh
 tar -xzvf totalrecon_rawdata.tar.gz
 ```
 
-(2) Appropriately relocate the raw data:
+(2) Save the raw data under `raw/`:
 ```
-# place raw data under raw/
-# argv[1]: The directory inside Total-Recon where the downloaded raw data is stored
-
 src_dir=totalrecon_rawdata
 bash place_rawdata.sh $src_dir
+
+###############################################################
+# argv[1]: The directory inside Total-Recon/ where the downloaded raw data is stored
 ```
 
-(3) Download the pre-trained VCN optical flow model for data preprocessing (instructions are taken from [BANMo](https://github.com/facebookresearch/banmo/tree/main/preprocess#download-optical-flow-model)):
-```
-mkdir lasr_vcn
-wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
-```
+(3) Preprocess raw data (takes around a couple of hours per sequence):
 
-(4) Preprocess raw data (takes around a couple of hours per sequence):
-
-Multi-actor sequences (e.g. human-dog):
+Multi-actor sequences:
 ```
-# argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
-# argv[2]: gpu number (0, 1, 2, ...)
-
+# e.g.
 prefix=humandog-stereo000; gpu=0
+bash preprocess/preprocess_rawdata_stereo_maskcamgiven_multiactor.sh $prefix $gpu
 
-bash preprocess_rawdata_stereo_maskcamgiven_multiactor.sh $prefix $gpu
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", "-human", "-animal", "-bkgd", and "-uncropped")
+# argv[2]: gpu number (0, 1, 2, ...)
 ```
 
-Uni-actor sequences (e.g. cat2):
+Uni-actor sequences:
 ```
-# argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
-# argv[2]: human or not, where `y` denotes human and  `n` denotes quadreped.
-# argv[3]: gpu number (0, 1, 2, ...)
-
+# e.g.
 prefix=cat2-stereo000; ishuman='n'; gpu=0
+bash preprocess/preprocess_rawdata_stereo_maskcamgiven_uniactor.sh $prefix $ishuman $gpu
 
-bash preprocess_rawdata_stereo_maskcamgiven_uniactor.sh $prefix $ishuman $gpu
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", and "-bkgd")
+# argv[2]: human or not, where `y` denotes human and  `n` denotes quadreped
+# argv[3]: gpu number (0, 1, 2, ...)
 ```
 
-(5) [NOT REQUIRED FOR INFERENCE] Format preprocessed data for training:
+(4) [NOT REQUIRED FOR INFERENCE] Format preprocessed data for training:
 
-Multi-actor sequences (e.g. human-dog):
+Multi-actor sequences:
 ```
-# argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
-# argv[2]: gpu number (0, 1, 2, ...)
-
+# e.g.
 prefix=humandog-stereo000; gpu=0
+bash preprocess/format_processeddata_stereo_multiactor.sh $prefix $gpu
 
-bash format_processeddata_stereo_multiactor.sh $prefix $gpu
-```
-
-Uni-actor sequences (e.g. cat2):
-```
-# argv[1]: Sequence name that points to folders under `raw/` (minus the suffix -leftcam or -rightcam).
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", "-human", "-animal", "-bkgd", and "-uncropped")
 # argv[2]: gpu number (0, 1, 2, ...)
+```
 
+Uni-actor sequences:
+```
+# e.g.
 prefix=cat2-stereo000; gpu=0
+bash preprocess/format_processeddata_stereo_uniactor.sh $prefix $gpu
 
-bash format_processeddata_stereo_uniactor.sh $prefix $gpu
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", and "-bkgd")
+# argv[2]: gpu number (0, 1, 2, ...)
 ```
 
 ### Pre-optimized Models
@@ -143,13 +150,34 @@ Rename the .obj file for the camera mesh to `camera.obj`, then place the file `c
 
 ## Training
 
-Run per-object pretraining and joint-finetuning as follows: 
+To train Total-Recon on our provided dataset, run per-object pretraining and joint-finetuning as follows: 
 
 ```
 # change appropriately (e.g. "humancat-stereo000" or "cat2-stereo000")
-prefix=humandog-stereo000
+prefix=humandog-stereo000 
+gpus=0,1,2,3              # gpu ids for training
+addr=10001                # master port for torch.distributed
 
-bash train_$prefix.sh
+bash train_$prefix.sh $gpus $addr
+```
+
+To train Total-Recon on *your own* videos, run one of the following commands:
+
+```
+# for multi-actor sequences
+prefix=humancat-mono000
+gpus=0,1,2,3
+addr=10001
+
+bash train_multiactor.sh $gpus $addr $prefix
+
+# for uni-actor sequences
+prefix=human2-mono000
+gpus=0,1,2,3
+addr=10001
+use_human=""              # "" (for human actors) / "no" (for animal actors)
+
+bash train_uniactor.sh $gpus $addr $prefix "$use_human"
 ```
 
 ## Inference

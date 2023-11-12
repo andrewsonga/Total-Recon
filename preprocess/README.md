@@ -1,83 +1,94 @@
-## Pre-process raw videos into BANMo format
+## Preprocess and format Record3D RGBD videos
 
-We provide instructions and to process raw videos into format ready-to-use for banmo.
+Here we provide separate instructions for preprocessing and formatting *your own* RGBD videos. These instructions make the following assumptions about your data:
 
-<details><summary>[Data format]</summary>
+<details><summary> <b>Data assumptions</b></summary>
 
-```
-DAVIS/
-    JPEGImages/
-        Full-Resolution/
-            sequence-name/
-                {%05d}.jpg
-    # segmentations from detectron2
-    Annotations/
-        Full-Resolution/
-            sequence-name/
-                {%05d}.png
-    # forward backward flow between every {1,2,4,8,16,32} frames from VCN-robust
-    FlowBW_%d/ and FlowFw_%d/ 
-        Full-Resolution/
-            sequence-name/ and optionally seqname-name_{%02d}/ (frame interval)
-                flo-{%05d}.pfm
-                occ-{%05d}.pfm
-                visflo-{%05d}.jpg
-                warp-{%05d}.jpg
-    # 16-dim Densepose features from CSE
-    Densepose/
-        Full-Resolution/
-            sequence-name/
-                # 112x(112*16) cropped densepose features
-                feat-{%05d}.pfm 
-                # [x,y,w,h] saved to warp cropped features to original coordinate
-                bbox-{%05d}.txt 
-                # densepose surface indices, for visualization
-                {%05d}.pfm 
-    # lines of pixels in order to speed up dataloading
-    Pixels/  
-        Full-Resolution/
-            sequence-name/
-                # skipped frames of flow followed by frame index
-                %d-%05d/ 
-```
-Under each folder, there are visualizations of segmentation, flow and densepose not listed above.
+- The user-provided RGBD videos are captured with the [Record3D](https://record3d.app) iOS app.
+- These videos are *monocular* sequences, unlike the *stereo* sequences provided in Total-Recon's dataset.
+- The object masks are *not* provided by the user, and the camera parameters are *yet* to be formatted into the desired OpenCV format.
+- For videos containing multi-actor scenes, the actors belong to different categories (human-pet is ok but human-human or pet-pet is not ok). This is because the current codebase uses semantic categories to track and mask an object. Using a video instance segmentation algorithm, such as [Track Anything](https://github.com/gaomingqi/Track-Anything), would enable one to remove this restriction.
 </details>
 
-### Download optical flow model
-Download pre-trained VCN optical flow (`pip install gdown` first). Then run
+
+
+### 1) Export Record3D data
+- Export the RGBD video captured by the Record3D app (in `r3d` format). This will result in a folder that is named by a timestamp (`yyyy-mm-dd--hh-mm-ss`) and that contains a subdirectory named "Shareable" where the data is saved as a `.r3d` file.
+- Save that folder (`yyyy-mm-dd--hh-mm-ss`) under `./raw` 
+
+### 2) Unzip, crop, and subsample Record3D data
+Unzip the `.r3d` file, and temporally crop and subsample the raw Record3D data with the following command:
+- if no cropping is desired, set `start_frame=0` and `end_frame=-1`
+- if no subsampling is desired, set `tgt_fps=$src_fps`, where `src_fps` is the frame rate of the raw Record3D video
 ```
-mkdir ./lasr_vcn
-gdown https://drive.google.com/uc?id=139S6pplPvMTB-_giI6V2dxpOHGqqAdHn -O ./lasr_vcn/vcn_rob.pth
-# alternatively: wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob.pth
+# e.g. 
+src_seqname="2023-11-11--00-00-00"
+tgt_seqname=human2-mono000
+start_frame=10
+end_frame=-1
+src_fps=30
+tgt_fps=10
+
+bash preprocess/unzip_crop_subsample.sh $src_seqname $tgt_seqname $start_frame $end_frame $src_fps $tgt_fps
+
+###############################################################
+# argv[1]: name of source directory exported by Record3D
+# argv[2]: name of target directory in Total-Recon/$rootdir (will contain temporally cropped and subsampled RGBD sequence) 
+# argv[3]: desired first frame in the raw Record3D sequence
+# argv[4]: desired end frame (inclusive) in the raw Record3D sequence
+# argv[5]: frame rate of the raw Record3D sequence
+# argv[6]: desired frame rate for subsampling the raw Record3D sequence
 ```
 
-### Run segmentation, extract features and flow
-Frist, make sure you have ffmpeg installed (`sudo apt-get install ffmpeg`) and 
-downloaded cat and human videos under `raw/`.  
+### 3) Preprocess raw data (takes around an hour per sequence)
 
-Run the following to extract per-frame rgb, mask, flow images 
+Multi-actor sequences:
 ```
-# argv[1]: sequence name. It points to folders under `raw/`.
-# argv[2]: format of the video. If the videos end with .mp4 replace .MOV with .mp4
-# argv[3]: human or not. y: human, n: quadreped.
-# argv[4]: FPS. By default we extract frames at 10 fps
-bash preprocess/preprocess.sh cat-pikachiu .MOV n 10 
-bash preprocess/preprocess.sh human-cap .MOV y 10 
+# e.g.
+prefix=humancat-mono000; gpu=0
+bash preprocess/preprocess_rawdata_multiactor.sh $prefix $gpu
+
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", "-human", "-animal", "-bkgd", and "-uncropped")
+# argv[2]: gpu number (0, 1, 2, ...)
 ```
 
-### How to reconstruct your own videos?
-To use your own videos, save them under `./raw/$seqname/`. and run the 
-command above.
+Uni-actor sequences:
+```
+# e.g.
+prefix=human2-mono000; ishuman='y'; gpu=0
+bash preprocess/preprocess_rawdata_uniactor.sh $prefix $ishuman $gpu
 
-The processing scripts supports `.MOV` and `.mp4` suffixes for now.
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", and "-bkgd")
+# argv[2]: human or not, where `y` denotes human and  `n` denotes quadreped
+# argv[3]: gpu number (0, 1, 2, ...)
+```
 
+### 4) [NOT REQUIRED FOR INFERENCE] Format preprocessed data for training
 
-<details><summary>[Tips on video capture]</summary>
+Multi-actor sequences:
+```
+# e.g.
+prefix=humancat-mono000; gpu=0
+bash preprocess/format_processeddata_multiactor.sh $prefix $gpu
 
-- Avoid occluding the target by the background, and keep object within the frame. Otherwise, segmentation may fail.
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", "-human", "-animal", "-bkgd", and "-uncropped")
+# argv[2]: gpu number (0, 1, 2, ...)
+```
 
-- Avoid zooming. Banmo assumes a constant camera parameter per video.
+Uni-actor sequences:
+```
+# e.g.
+prefix=human2-mono000; gpu=0
+bash preprocess/format_processeddata_uniactor.sh $prefix $gpu
 
-- Use higher-res videos. The examples uses images of 1920x1080.
-</details>
+###############################################################
+# argv[1]: prefix of the preprocessed data folders under "database/DAVIS/JPEGImages/" (minus suffices such as "-leftcam", "-rightcam", and "-bkgd")
+# argv[2]: gpu number (0, 1, 2, ...)
+```
 
+<br>
+
+To train Total-Recon on your own videos, find the instructions [here](../README.md#training).
