@@ -145,7 +145,7 @@ flags.DEFINE_float('fine_steps', 1.1, 'by default, not using fine samples')
 flags.DEFINE_float('nf_reset', 0.5, 'by default, start reseting near-far plane at 50%')
 flags.DEFINE_float('bound_reset', 0.5, 'by default, start reseting bound from 50%')
 flags.DEFINE_float('bound_factor', 2, 'by default, use a loose bound')
-flags.DEFINE_float('lamb', 1.0, 'interpolation factor between previous/current object bounds and near-far planes')
+flags.DEFINE_float('lamb', 0.0, 'interpolation factor between previous/current object bounds and near-far planes (lamb = 0.0 forgets the previous object bounds and near-far planes and lamb = 1.0 does not change the object bounds and near-far planes)')
 
 # optimization: initialization 
 flags.DEFINE_bool('init_ellips', False, 'whether to init shape as ellips')

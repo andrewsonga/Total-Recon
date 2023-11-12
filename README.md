@@ -57,8 +57,7 @@ wget https://www.dropbox.com/s/bgsodsnnbxdoza3/vcn_rob.pth -O ./lasr_vcn/vcn_rob
 
 ### Data
 
-The following steps (1) ~ (4) for downloading, preprocessing, and formatting RGBD sequences only pertains to Total-Recon's dataset. **<span style="color: orange;">To apply Total-Recon on your own RGBD videos, please follow the instructions</span>** [here](preprocess/README.md).
-
+The following steps (1) ~ (4) for downloading, preprocessing, and formatting RGBD sequences only pertains to Total-Recon's dataset. **<ins><span style="color: orange;">To apply Total-Recon on your own RGBD videos, please follow the instructions</span></ins>** [here](preprocess/README.md).
 
 (1) Download and untar the raw data:
 ```
