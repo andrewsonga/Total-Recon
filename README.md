@@ -21,6 +21,9 @@ We plan to release our code in the following 4 stages:
 - [x] Training code (per-object pretraining and joint-finetuning)
 - [x] Data preprocessing code for user-provided RGBD videos
 
+## Previous Bugs
+Before a recent [commit](https://github.com/andrewsonga/Total-Recon/commit/8f2c55520f7fb806f84a0e168befc87460b8a2b2) there was a bug in the code that set the default $\lambda = 1$ (the interpolation factor of the EMA filter for updating object bounds and near-far plane: new state = (1 - $\lambda$) $\times$ signal + $\lambda$ $\times$ old state). This prevents these bounds from being updated at all during training and may result in failed reconstruction. The default value has now been corrected to 0.0 and the code now correctly updates the bounds and near-far plane during training. **Please pull the latest version of the codebase for a bug-free experience**.
+
 ## Getting Started
 
 ### Dependencies
